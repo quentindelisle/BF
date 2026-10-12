@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Observ'BF</title>
+<meta name="description" content="Boxe française – Savate (CA4) : observation des touches, chrono et tournoi de classe. N'EPS numérique.">
+<meta name="theme-color" content="#13285A">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Observ'BF">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<!-- ============ ACCUEIL ============ -->
+<section id="home" class="screen">
+  <div class="home-wrap">
+    <img src="img/logo.webp" alt="N'EPS numérique – Boxe Française Savate CA4" class="home-logo">
+    <div class="home-side">
+      <h1 class="brand">Observ'<span>BF</span></h1>
+      <p class="lead">Observer, compter, arbitrer : le tournoi de boxe française de la classe sur une tablette.</p>
+      <div class="home-actions">
+        <button class="big-btn primary" id="goResume" hidden><b>Reprendre l'assaut en cours</b><small id="resumeInfo"></small></button>
+        <button class="big-btn" id="goStudent"><b>Espace élève</b><small id="studentInfo">Aucun groupe choisi</small></button>
+        <button class="big-btn" id="goFree"><b>Assaut libre</b><small>Hors tournoi, choix libre des tireurs</small></button>
+        <button class="big-btn ghost" id="goProf"><b>Espace prof</b><small>Classe, groupes, tournoi, résultats</small></button>
+      </div>
+      <p class="foot">N'EPS numérique · by Quentin Delisle</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ESPACE PROF ============ -->
+<section id="prof" class="screen" hidden>
+  <header class="topnav">
+    <img src="img/logo.webp" alt="" class="nav-logo">
+    <h1>Espace prof</h1>
+    <nav class="tabs" id="profTabs">
+      <button data-tab="classe" class="on">Classe</button>
+      <button data-tab="groupes">Groupes</button>
+      <button data-tab="tournoi">Tournoi</button>
+      <button data-tab="resultats">Résultats</button>
+    </nav>
+    <button class="btn" id="profHome">Accueil</button>
+  </header>
+
+  <div class="prof-body">
+    <!-- Classe -->
+    <div class="tab" id="tab-classe">
+      <div class="card row-card">
+        <div class="grow">
+          <h2>Importer la classe</h2>
+          <p class="note">Fichier Excel (.xlsx) : <b>NOM Prénom</b> en colonne A, ou <b>Nom</b> en A et <b>Prénom</b> en B. Une colonne F/G (sexe) est reconnue si elle existe. La ligne de titre est ignorée.</p>
+        </div>
+        <label class="btn primary file-btn">Choisir le fichier<input type="file" id="fileXlsx" accept=".xlsx,.xls,.csv"></label>
+      </div>
+      <div class="card" id="importPreview" hidden></div>
+      <div class="card">
+        <div class="row between">
+          <h2>Élèves <span class="count" id="classCount"></span></h2>
+          <div class="row">
+            <input type="text" id="className" placeholder="Nom de la classe (ex. 2nde 4)" maxlength="30">
+          </div>
+        </div>
+        <form class="row add-form" id="addForm">
+          <input type="text" id="addNom" placeholder="NOM" maxlength="30">
+          <input type="text" id="addPrenom" placeholder="Prénom" maxlength="30">
+          <div class="seg" id="addSexe"><button type="button" data-v="G" class="on">Garçon</button><button type="button" data-v="F">Fille</button></div>
+          <button class="btn" type="submit">Ajouter</button>
+        </form>
+        <p class="note">Touchez G / F sur une tuile pour changer le dessin du combattant.</p>
+        <div class="tiles-grid" id="classList"></div>
+      </div>
+    </div>
+
+    <!-- Groupes -->
+    <div class="tab" id="tab-groupes" hidden>
+      <div class="card row between">
+        <div class="row">
+          <h2>Nombre de groupes</h2>
+          <div class="stepper"><button id="gMinus" aria-label="Moins de groupes">−</button><b id="gCount">2</b><button id="gPlus" aria-label="Plus de groupes">+</button></div>
+        </div>
+        <div class="row">
+          <button class="btn" id="gAuto">Répartition automatique (mixte)</button>
+          <button class="btn" id="gClear">Tout retirer</button>
+        </div>
+      </div>
+      <p class="note pad">Glissez les tuiles élèves dans un groupe. Sans glisser : touchez une tuile puis touchez le groupe.</p>
+      <div class="pool card" data-drop="pool">
+        <h3>Élèves non placés <span class="count" id="poolCount"></span></h3>
+        <div class="pool-tiles" id="poolTiles"></div>
+      </div>
+      <div class="groups-grid" id="groupsGrid"></div>
+    </div>
+
+    <!-- Tournoi -->
+    <div class="tab" id="tab-tournoi" hidden>
+      <div class="card tablet-card">
+        <div>
+          <h2>Cette tablette</h2>
+          <p class="note">Choisissez le groupe qui travaille sur cette tablette.</p>
+        </div>
+        <div class="seg wrap" id="tabletGroup"></div>
+        <button class="btn primary" id="launchStudent">Lancer l'espace élève</button>
+      </div>
+
+      <div class="cols2">
+        <div class="card">
+          <h2>Temps</h2>
+          <div class="form-grid">
+            <label>Durée du tournoi (min)<input type="number" id="sTotal" min="5" max="240" step="1"></label>
+            <label>Reprises par assaut<input type="number" id="sReprises" min="1" max="5" step="1"></label>
+            <label>Récupération entre reprises (s)<input type="number" id="sRecup" min="0" max="120" step="5"></label>
+            <label>Changement entre assauts (s)<input type="number" id="sTransition" min="0" max="300" step="5"></label>
+          </div>
+          <div class="row" style="margin-top:12px">
+            <div class="seg" id="sMode"><button data-v="auto">Durée de reprise calculée</button><button data-v="manuel">Durée fixe</button></div>
+            <label class="inline" id="sManualWrap">Reprise (s)<input type="number" id="sManual" min="20" max="300" step="5"></label>
+          </div>
+          <div class="table-wrap"><table class="timing" id="timingTable"></table></div>
+          <p class="note">En mode calculé, chaque groupe reçoit la durée de reprise qui permet de faire tous ses assauts dans le temps du tournoi (arrondie à 5 s, entre 30 s et 3 min).</p>
+        </div>
+
+        <div class="card">
+          <h2>Barème</h2>
+          <div class="table-wrap">
+          <table class="bareme">
+            <thead><tr><th></th><th>Visage</th><th>Tronc</th><th>Ligne basse</th><th>Bras / garde</th></tr></thead>
+            <tbody id="baremeBody"></tbody>
+          </table>
+          </div>
+          <div class="form-grid">
+            <label>Frappe trop forte (points retirés)<input type="number" id="sPen" min="0" max="5" step="1"></label>
+            <label>Bonus enchaînement réussi (2 touches)<input type="number" id="sEnch" min="0" max="5" step="1"></label>
+            <label>Classement : victoire<input type="number" id="sV" min="0" max="10" step="1"></label>
+            <label>Classement : nul<input type="number" id="sN" min="0" max="10" step="1"></label>
+            <label>Classement : défaite<input type="number" id="sD" min="0" max="10" step="1"></label>
+            <label>Passage auto à l'assaut suivant (s)<input type="number" id="sAuto" min="3" max="60" step="1"></label>
+          </div>
+          <label class="block">Geste droit / courbe : <b id="seuilVal"></b>
+            <input type="range" id="sSeuil" min="0.08" max="0.40" step="0.01">
+            <span class="note">À gauche, le moindre arrondi devient une courbe. À droite, il faut une courbe nette.</span>
+          </label>
+          <label class="block">Code prof (laisser vide pour aucun)<input type="text" id="sPin" inputmode="numeric" maxlength="8" placeholder="ex. 2468"></label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Résultats -->
+    <div class="tab" id="tab-resultats" hidden>
+      <div class="card row between">
+        <h2>Résultats et statistiques</h2>
+        <div class="row">
+          <button class="btn primary" id="exportXlsx">Exporter tout (Excel)</button>
+          <button class="btn" id="exportJson">Sauvegarde (.json)</button>
+          <label class="btn file-btn">Importer une sauvegarde<input type="file" id="importJson" accept=".json,application/json"></label>
+        </div>
+      </div>
+      <div id="resultsBody"></div>
+      <div class="card row between danger-zone">
+        <p class="note">La sauvegarde .json d'une autre tablette ajoute ses assauts terminés à cette tablette.</p>
+        <div class="row">
+          <button class="btn danger" id="resetResults">Effacer les résultats</button>
+          <button class="btn danger" id="resetAll">Tout effacer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PRÉPARATION D'ASSAUT ============ -->
+<section id="prep" class="screen" hidden>
+  <header class="topnav">
+    <img src="img/logo.webp" alt="" class="nav-logo">
+    <h1 id="prepTitle">Groupe 1</h1>
+    <span class="pill" id="prepProgress"></span>
+    <span class="grow"></span>
+    <button class="btn" id="prepHome">Accueil</button>
+  </header>
+  <div class="prep-body">
+    <div class="prep-main card">
+      <div class="vs">
+        <div class="vs-card red">
+          <span class="corner">Coin rouge</span>
+          <div class="vs-figure" id="prepFigR"></div>
+          <select id="selRed" aria-label="Tireur rouge"></select>
+          <div class="seg small" id="sexR"><button data-v="G">Garçon</button><button data-v="F">Fille</button></div>
+        </div>
+        <div class="vs-mid"><span>VS</span></div>
+        <div class="vs-card blue">
+          <span class="corner">Coin bleu</span>
+          <div class="vs-figure" id="prepFigB"></div>
+          <select id="selBlue" aria-label="Tireur bleu"></select>
+          <div class="seg small" id="sexB"><button data-v="G">Garçon</button><button data-v="F">Fille</button></div>
+        </div>
+      </div>
+      <div class="judges">
+        <label>Juge central<select id="selJC"></select></label>
+        <label>Juge de coin (observateur)<select id="selCoin"></select></label>
+      </div>
+      <div class="row between prep-foot">
+        <span class="timing-pill" id="prepTiming"></span>
+        <div class="row">
+          <button class="btn" id="prepSkip">Passer cet assaut</button>
+          <button class="btn go" id="prepStart">Commencer l'assaut</button>
+        </div>
+      </div>
+    </div>
+    <aside class="prep-side">
+      <div class="card">
+        <h3>À suivre</h3>
+        <ol class="next-list" id="nextList"></ol>
+      </div>
+      <div class="card">
+        <h3>Classement du groupe</h3>
+        <div id="prepRanking"></div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- ============ ASSAUT ============ -->
+<section id="fight" class="screen" hidden>
+  <header class="fight-top">
+    <div class="score-card red">
+      <div class="sc-info"><span class="sc-corner">Rouge</span><b id="fNameR">—</b><small id="fSubR"></small></div>
+      <span class="sc-score" id="fScoreR">0</span>
+    </div>
+    <div class="clock" id="clock">
+      <div class="clock-line"><span class="phase" id="cPhase">Prêt</span><span class="rep" id="cRep">Reprise 1/2</span></div>
+      <div class="time" id="cTime">1:30</div>
+      <div class="clock-btns">
+        <button class="cbtn" id="cReset" aria-label="Remettre la reprise à zéro">↺</button>
+        <button class="cbtn main" id="cStart">Départ</button>
+        <button class="cbtn" id="cSkip" aria-label="Terminer la reprise">⏭</button>
+      </div>
+    </div>
+    <div class="score-card blue">
+      <span class="sc-score" id="fScoreB">0</span>
+      <div class="sc-info right"><span class="sc-corner">Bleu</span><b id="fNameB">—</b><small id="fSubB"></small></div>
+    </div>
+  </header>
+  <div class="fight-sub">
+    <button class="btn small" id="fMenu">Menu</button>
+    <span id="fJudges" class="judges-line"></span>
+    <button class="btn small" id="fEnd">Terminer l'assaut</button>
+  </div>
+
+  <main class="arena" id="arena">
+    <section class="half red" data-side="R">
+      <div class="banner" id="bannerR">Le <b>rouge</b> frappe : tracez depuis son gant ou sa chaussure.</div>
+      <div class="origin">
+        <div class="weapon" data-side="R" data-weapon="poing" id="wpR"></div>
+        <div class="weapon" data-side="R" data-weapon="pied" id="wfR"></div>
+      </div>
+      <div class="target" data-side="R" id="targetR"></div>
+      <div class="side-ctrl">
+        <button class="sbtn ench" data-side="R" data-act="ench">Enchaînement</button>
+        <button class="sbtn warn" data-side="R" data-act="trop">Trop fort</button>
+        <button class="sbtn miss" data-side="R" data-miss="R">Dans le vide</button>
+        <button class="sbtn" data-side="R" data-act="undo">Annuler</button>
+      </div>
+    </section>
+    <section class="half blue" data-side="B">
+      <div class="banner" id="bannerB">Le <b>bleu</b> frappe : tracez depuis son gant ou sa chaussure.</div>
+      <div class="target" data-side="B" id="targetB"></div>
+      <div class="origin">
+        <div class="weapon" data-side="B" data-weapon="poing" id="wpB"></div>
+        <div class="weapon" data-side="B" data-weapon="pied" id="wfB"></div>
+      </div>
+      <div class="side-ctrl">
+        <button class="sbtn" data-side="B" data-act="undo">Annuler</button>
+        <button class="sbtn miss" data-side="B" data-miss="B">Dans le vide</button>
+        <button class="sbtn warn" data-side="B" data-act="trop">Trop fort</button>
+        <button class="sbtn ench" data-side="B" data-act="ench">Enchaînement</button>
+      </div>
+    </section>
+    <canvas id="trail"></canvas>
+  </main>
+</section>
+
+<!-- ============ DIALOGUES ============ -->
+<dialog id="resultDlg"><div id="resultBody"></div></dialog>
+<dialog id="pinDlg">
+  <form id="pinForm" class="pin-form">
+    <h2>Code prof</h2>
+    <input type="password" id="pinInput" inputmode="numeric" autocomplete="off" maxlength="8" aria-label="Code prof">
+    <p class="note" id="pinMsg"></p>
+    <div class="row between"><button type="button" class="btn" id="pinCancel">Annuler</button><button class="btn primary" type="submit">Entrer</button></div>
+  </form>
+</dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="dragGhost" hidden></div>
+
+<script src="vendor/xlsx.full.min.js" defer></script>
+<script src="js/draw.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

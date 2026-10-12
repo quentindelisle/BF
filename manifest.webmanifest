@@ -1,0 +1,17 @@
+{
+  "name": "Observ'BF — Boxe française Savate",
+  "short_name": "Observ'BF",
+  "description": "Observation des touches, chrono et tournoi de boxe française (CA4) — N'EPS numérique.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#E9F2FD",
+  "theme_color": "#13285A",
+  "icons": [
+    {"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
