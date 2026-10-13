@@ -4,7 +4,7 @@
    parcours prof en 4 étapes, échanges par QR codes, paramètres du cycle, piliers.
    ===================================================================== */
 'use strict';
-const APP_VERSION = '3.0.0';
+const APP_VERSION = '3.1.0';
 const ROOT_KEY = 'observbf.v3';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -43,7 +43,7 @@ const DEFAULT_PILIERS = [
   {id:'def', n:'Défendre et riposter', cr:['Pare ou esquive les attaques', 'Riposte après une parade', 'Garde la distance de sécurité']},
   {id:'arb', n:'Arbitrer et juger', cr:['Annonces claires : en garde, allez, stop', 'Sanctionne les frappes trop fortes', 'Compte les touches sans se tromper']}];
 const DEF_BAREME = {poing:{tete:2, tronc:1, bas:0, garde:0}, pied:{tete:3, tronc:2, bas:1, garde:0}};
-const DEF_SET = {nbLessons:6, current:1, totalMin:40, reprises:2, recupSec:30, transitionSec:60, mode:'auto', manualSec:90, nbJP:2,
+const DEF_SET = {nbLessons:6, current:1, totalMin:40, reprises:2, recupSec:30, transitionSec:60, mode:'auto', manualSec:90, bonusOn:true, bonusPts:1, bonusArmes:['direct','crochet','chasse','fouette'],
   bareme:clone(DEF_BAREME), penalite:1, bonusEnch:1, seuil:0.18, ptsV:3, ptsN:2, ptsD:1, autoNext:10};
 
 /* ---------------- État ---------------- */
@@ -180,7 +180,7 @@ const todoList = (n, gid) => lessonAssaults(n, gid).filter(a => a.status !== 'do
 const presentMembers = (n, g) => g.members.filter(id => stu(id) && present(n, id));
 function ensureSchedule(n, g) {
   if (!isProf()) return;
-  const L = lesson(n), mem = presentMembers(n, g), sig = [...mem].sort().join(',') + '#' + SET().nbJP;
+  const L = lesson(n), mem = presentMembers(n, g), sig = [...mem].sort().join(',') + '#roles4';
   if (L.sig[g.id] === sig) return;
   const done = S.assaults.filter(a => a.n === +n && a.gid === g.id && a.status === 'done');
   S.assaults = S.assaults.filter(a => !(a.n === +n && a.gid === g.id && a.status !== 'done'));
@@ -190,20 +190,29 @@ function ensureSchedule(n, g) {
   assignRoles(n, g);
   L.sig[g.id] = sig; save();
 }
-/* Rotation des rôles : juge central puis juges de points, en évitant ceux qui combattent juste après */
+/* Rotation des rôles : arbitre (juge central), coach rouge et coach bleu (juges de coin, observateurs sur la tablette), repos.
+   Priorité aux élèves qui se sont le plus reposés ; on évite de donner un rôle à ceux qui combattent juste après. */
+const ROLE_N = {jc: 'Arbitre', cR: 'Coach rouge', cB: 'Coach bleu'};
+function restOf(a) {
+  if (!a.gid) return [];
+  const g = groupById(a.gid); if (!g) return [];
+  const busy = new Set([a.red, a.blue, a.jc, ...(a.jp || [])].filter(Boolean));
+  return presentMembers(a.n, g).filter(id => !busy.has(id));
+}
 function assignRoles(n, g) {
   const mem = presentMembers(n, g), cnt = {};
-  mem.forEach(id => cnt[id] = {jc: 0, jp: 0});
-  for (const a of lessonAssaults(n, g.id)) if (a.status === 'done') { if (cnt[a.jc]) cnt[a.jc].jc++; (a.jp || []).forEach(j => cnt[j] && cnt[j].jp++); }
-  const todo = todoList(n, g.id), nbJP = +SET().nbJP || 0;
+  mem.forEach(id => cnt[id] = {jc: 0, co: 0, rest: 0});
+  const tally = a => { if (cnt[a.jc]) cnt[a.jc].jc++; (a.jp || []).forEach(j => cnt[j] && cnt[j].co++); restOf(a).forEach(r => cnt[r] && cnt[r].rest++); };
+  lessonAssaults(n, g.id).filter(a => a.status === 'done').forEach(tally);
+  const todo = todoList(n, g.id);
   todo.forEach((a, i) => {
     const next = todo[i + 1], busy = id => next && (next.red === id || next.blue === id) ? 1 : 0;
-    const tot = id => cnt[id].jc + cnt[id].jp;
-    let others = mem.filter(id => id !== a.red && id !== a.blue);
-    others.sort((x, y) => busy(x) - busy(y) || cnt[x].jc - cnt[y].jc || tot(x) - tot(y));
-    a.jc = others.shift() || ''; if (a.jc) cnt[a.jc].jc++;
-    others.sort((x, y) => busy(x) - busy(y) || cnt[x].jp - cnt[y].jp || tot(x) - tot(y));
-    a.jp = others.slice(0, nbJP); a.jp.forEach(j => cnt[j].jp++);
+    const others = mem.filter(id => id !== a.red && id !== a.blue);
+    const pick = key => { others.sort((x, y) => busy(x) - busy(y) || cnt[y].rest - cnt[x].rest || cnt[x][key] - cnt[y][key] || (cnt[x].jc + cnt[x].co) - (cnt[y].jc + cnt[y].co)); return others.shift() || ''; };
+    a.jc = pick('jc');
+    const cR = pick('co'), cB = pick('co');
+    a.jp = [cR, cB];
+    tally(a);
   });
 }
 function ranking(n, g) {
@@ -227,7 +236,7 @@ function rankingTable(n, g, compact) {
 }
 
 /* ---------------- Points et statistiques ---------------- */
-function ptsOf(e) { if (!e.z) return 0; if (e.trop) return -Math.abs(+SET().penalite || 0); return +(SET().bareme[e.w]?.[e.cat] ?? 0); }
+function ptsOf(e) { if (!e.z) return 0; if (e.trop) return -Math.abs(+SET().penalite || 0); const b = +(SET().bareme[e.w]?.[e.cat] ?? 0); return b > 0 ? b + (+e.bx || 0) : b; }
 const isValid = e => e.z && !e.trop && ptsOf(e) > 0;
 function enchStats(events, side) {
   const m = new Map();
@@ -238,23 +247,23 @@ function enchStats(events, side) {
 const scoreOf = (events, side) => events.filter(e => e.t === side).reduce((s, e) => s + ptsOf(e), 0) + enchStats(events, side).ok * (+SET().bonusEnch || 0);
 function sideStats(events, side) {
   const ev = events.filter(e => e.t === side);
-  const st = {tent: ev.length, valid: ev.filter(isValid).length, trop: ev.filter(e => e.trop).length, cats: {}, coups: {}, ...enchStats(events, side)};
+  const st = {tent: ev.length, valid: ev.filter(isValid).length, trop: ev.filter(e => e.trop).length, bonus: ev.filter(e => e.bx && isValid(e)).length, cats: {}, coups: {}, ...enchStats(events, side)};
   for (const k in CATL) st.cats[k] = ev.filter(e => e.cat === k).length;
   for (const c in COUPS) { const ce = ev.filter(e => e.c === c); st.coups[c] = {t: ce.length, v: ce.filter(isValid).length}; }
   st.poing = ev.filter(e => e.w === 'poing').length; st.pied = ev.filter(e => e.w === 'pied').length;
   return st;
 }
 function studentStats(id, n) {
-  const st = {J:0, V:0, N:0, D:0, pm:0, pe:0, tent:0, valid:0, trop:0, poing:0, pied:0, tries:0, ok:0, jc:0, jp:0, cats:{}, coups:{}};
+  const st = {J:0, V:0, N:0, D:0, pm:0, pe:0, tent:0, valid:0, trop:0, poing:0, pied:0, tries:0, ok:0, bonus:0, jc:0, jp:0, rest:0, cats:{}, coups:{}};
   for (const k in CATL) st.cats[k] = 0; for (const c in COUPS) st.coups[c] = {t: 0, v: 0};
   for (const a of S.assaults) {
     if (a.status !== 'done' || (n && a.n !== n)) continue;
-    if (a.jc === id) st.jc++; if ((a.jp || []).includes(id)) st.jp++;
+    if (a.jc === id) st.jc++; if ((a.jp || []).includes(id)) st.jp++; if (restOf(a).includes(id)) st.rest++;
     const side = a.red === id ? 'R' : a.blue === id ? 'B' : null; if (!side) continue;
     st.J++; st.pm += side === 'R' ? a.scoreR : a.scoreB; st.pe += side === 'R' ? a.scoreB : a.scoreR;
     if (a.winner === 'N') st.N++; else if (a.winner === side) st.V++; else st.D++;
     const s = sideStats(a.events || [], side);
-    for (const k of ['tent', 'valid', 'trop', 'poing', 'pied', 'tries', 'ok']) st[k] += s[k];
+    for (const k of ['tent', 'valid', 'trop', 'poing', 'pied', 'tries', 'ok', 'bonus']) st[k] += s[k];
     for (const k in CATL) st.cats[k] += s.cats[k];
     for (const c in COUPS) { st.coups[c].t += s.coups[c].t; st.coups[c].v += s.coups[c].v; }
   }
@@ -467,12 +476,18 @@ function profCycle() {
         <label>Reprises par assaut<input type="number" min="1" max="5" data-field="set" data-k="reprises" value="${s.reprises}"></label>
         <label>Récupération (s)<input type="number" min="0" max="120" step="5" data-field="set" data-k="recupSec" value="${s.recupSec}"></label>
         <label>Changement entre assauts (s)<input type="number" min="0" max="300" step="5" data-field="set" data-k="transitionSec" value="${s.transitionSec}"></label>
-        <label>Juges de points par assaut<input type="number" min="0" max="3" data-field="set" data-k="nbJP" value="${s.nbJP}"></label>
         <label>Durée de reprise<select data-field="set" data-k="mode"><option value="auto" ${s.mode === 'auto' ? 'selected' : ''}>Calculée selon la durée du tournoi</option><option value="manuel" ${s.mode === 'manuel' ? 'selected' : ''}>Fixe</option></select></label>
         <label ${s.mode === 'manuel' ? '' : 'hidden'}>Reprise fixe (s)<input type="number" min="20" max="300" step="5" data-field="set" data-k="manualSec" value="${s.manualSec}"></label>
       </div>
       <p class="note">En mode calculé, chaque groupe reçoit la durée de reprise qui permet de faire tous ses assauts dans le temps du tournoi (arrondie à 5 s, entre 30 s et 3 min).</p></div>
     <div class="card"><h2>Les leçons</h2><p class="note">Titre, pilier d'apprentissage observé, durée du tournoi et nombre de reprises de chaque leçon, réglés à l'avance.</p>${rows}</div>
+    <div class="card"><h2>🎯 Arme bonus (temps de coaching)</h2>
+      <p class="note">Pendant la récupération entre deux reprises, le coach de chaque tireur choisit avec lui une arme bonus parmi celles cochées. Chaque touche valable avec cette arme rapporte des points en plus à la reprise suivante.</p>
+      <div class="cgrid" style="margin-top:10px">
+        <label>Arme bonus<select data-field="set" data-k="bonusOn"><option value="1" ${s.bonusOn ? 'selected' : ''}>Activée</option><option value="" ${s.bonusOn ? '' : 'selected'}>Désactivée</option></select></label>
+        <label>Points en plus par touche<input type="number" min="1" max="5" data-field="set" data-k="bonusPts" value="${s.bonusPts}"></label>
+        <div style="grid-column:span 2"><b style="font-size:14px">Armes proposées</b><div class="row" style="margin-top:6px">${COUP_KEYS.map(c => `<label class="chk"><input type="checkbox" data-field="bonusArme" data-c="${c}" ${s.bonusArmes.includes(c) ? 'checked' : ''}> ${COUPS[c].l} <span class="note">(${COUPS[c].w})</span></label>`).join('')}</div></div>
+      </div></div>
     <div class="card"><h2>Barème</h2><div class="table-wrap"><table class="bareme"><thead><tr><th></th><th class="c">Visage</th><th class="c">Tronc</th><th class="c">Ligne basse</th><th class="c">Bras / garde</th></tr></thead><tbody>
       ${['poing', 'pied'].map(w => `<tr><th>${w === 'poing' ? 'Poing' : 'Pied'}</th>${['tete', 'tronc', 'bas', 'garde'].map(c => `<td class="c"><input type="number" min="0" max="10" data-field="bareme" data-w="${w}" data-c="${c}" value="${s.bareme[w][c]}"></td>`).join('')}</tr>`).join('')}</tbody></table></div>
       <div class="cgrid" style="margin-top:12px">
@@ -511,12 +526,12 @@ function profAssauts() {
   const n = curLesson();
   if (!S.groups.some(g => g.members.length)) return `<div class="card">Aucun groupe. <button class="btn small" data-action="tab" data-tab="groupes">🎽 Créer les groupes</button></div>`;
   S.groups.forEach(g => ensureSchedule(n, g));
-  return `<div class="card"><p class="note" style="margin:0">Ordre des assauts et rôles de chaque groupe pour la leçon ${n}. Les rôles tournent : chacun est juge central et juge de points, en évitant ceux qui combattent juste après. Les élèves peuvent les modifier avant chaque assaut.</p>
+  return `<div class="card"><p class="note" style="margin:0">Ordre des assauts et rôles de chaque groupe pour la leçon ${n}. Les rôles tournent pour que chacun soit toujours occupé : arbitre (juge central), coach rouge et coach bleu (juges de coin, ils saisissent les touches de leur tireur sur la tablette). Au-delà de 5 élèves présents, les autres sont au repos. Les élèves peuvent les modifier avant chaque assaut.</p>
       <div class="btn-row" style="margin-top:10px"><button class="btn small" data-action="reroll">🔄 Recalculer les rôles des assauts à faire</button></div></div>` +
     S.groups.filter(g => g.members.length).map(g => { const list = lessonAssaults(n, g.id), t = timing(n, presentMembers(n, g).length);
       return `<div class="card gzone colored" style="${gStyle(g)};margin-bottom:14px"><div class="row between"><h3>${gDot(g)}${esc(g.name)}</h3><span class="pill">${list.filter(a => a.status === 'done').length}/${list.length} · ${t.R} × ${fmt(t.rep)}${t.warn ? ' · ⚠ ' + t.warn : ''}</span></div>
-        <div class="table-wrap"><table><thead><tr><th>#</th><th>Rouge</th><th>Bleu</th><th>Juge central</th><th>Juges de points</th><th class="n">Score</th></tr></thead><tbody>
-        ${list.map((a, i) => `<tr><td>${i + 1}</td><td class="wR">${esc(nameOf(a.red))}</td><td class="wB">${esc(nameOf(a.blue))}</td><td>${esc(nameOf(a.jc) || '—')}</td><td>${(a.jp || []).map(nameOf).map(esc).join(', ') || '—'}</td>
+        <div class="table-wrap"><table><thead><tr><th>#</th><th>Rouge</th><th>Bleu</th><th>⚖️ Arbitre</th><th>📋 Coach rouge</th><th>📋 Coach bleu</th><th>💤 Repos</th><th class="n">Score</th></tr></thead><tbody>
+        ${list.map((a, i) => `<tr><td>${i + 1}</td><td class="wR">${esc(nameOf(a.red))}</td><td class="wB">${esc(nameOf(a.blue))}</td><td>${esc(nameOf(a.jc) || '—')}</td><td class="wR" style="font-weight:600">${esc(nameOf(a.jp?.[0]) || '—')}</td><td class="wB" style="font-weight:600">${esc(nameOf(a.jp?.[1]) || '—')}</td><td class="note">${restOf(a).map(nameOf).map(esc).join(', ') || '—'}</td>
           <td class="n">${a.status === 'done' ? `<b>${a.scoreR} – ${a.scoreB}</b>` : '<span class="status">à faire</span>'}</td></tr>`).join('')}</tbody></table></div></div>`; }).join('');
 }
 function profQR() {
@@ -557,9 +572,9 @@ function profStats() {
   const n = UI.statN || 0;
   const rows = sortedStudents().map(s => ({s, st: studentStats(s.id, n || null)}));
   return `<div class="lesson-picker" style="margin-bottom:12px"><button class="lp small ${!n ? 'on' : ''}" style="width:auto;padding:0 12px" data-action="statN" data-n="0">Cycle</button>${Array.from({length: SET().nbLessons}, (_, i) => i + 1).map(k => `<button class="lp small ${k === n ? 'on' : ''}" data-action="statN" data-n="${k}">${k}</button>`).join('')}</div>
-    <div class="card"><div class="table-wrap"><table><thead><tr><th>Élève</th><th class="n">Assauts</th><th class="n">V-N-D</th><th class="n">Pts</th><th class="n">Coups</th><th class="n">Touches</th><th class="n">Effic.</th><th class="n">Dir.</th><th class="n">Cro.</th><th class="n">Cha.</th><th class="n">Fou.</th><th class="n">Visage</th><th class="n">Trop fort</th><th class="n">Ench.</th><th class="n">J. central</th><th class="n">J. points</th></tr></thead><tbody>
+    <div class="card"><div class="table-wrap"><table><thead><tr><th>Élève</th><th class="n">Assauts</th><th class="n">V-N-D</th><th class="n">Pts</th><th class="n">Coups</th><th class="n">Touches</th><th class="n">Effic.</th><th class="n">Dir.</th><th class="n">Cro.</th><th class="n">Cha.</th><th class="n">Fou.</th><th class="n">Visage</th><th class="n">Trop fort</th><th class="n">Ench.</th><th class="n">Arbitre</th><th class="n">Coach</th><th class="n">Repos</th><th class="n">Bonus</th></tr></thead><tbody>
     ${rows.map(({s, st}) => `<tr><td>${esc(fullName(s))}</td><td class="n">${st.J}</td><td class="n">${st.V}-${st.N}-${st.D}</td><td class="n"><b>${st.pm}</b></td><td class="n">${st.tent}</td><td class="n">${st.valid}</td><td class="n">${st.tent ? Math.round(100 * st.valid / st.tent) + ' %' : '—'}</td>
-      ${COUP_KEYS.map(c => `<td class="n">${st.coups[c].v}/${st.coups[c].t}</td>`).join('')}<td class="n">${st.cats.tete}</td><td class="n">${st.trop}</td><td class="n">${st.ok}/${st.tries}</td><td class="n">${st.jc}</td><td class="n">${st.jp}</td></tr>`).join('')}</tbody></table></div></div>`;
+      ${COUP_KEYS.map(c => `<td class="n">${st.coups[c].v}/${st.coups[c].t}</td>`).join('')}<td class="n">${st.cats.tete}</td><td class="n">${st.trop}</td><td class="n">${st.ok}/${st.tries}</td><td class="n">${st.jc}</td><td class="n">${st.jp}</td><td class="n">${st.rest}</td><td class="n">${st.bonus}</td></tr>`).join('')}</tbody></table></div></div>`;
 }
 function profObs() {
   const N = SET().nbLessons, byPil = {};
@@ -610,20 +625,23 @@ function viewPrep() {
   const t = timing(n, P.free ? 0 : presentMembers(n, g).length);
   const card = side => { const id = side === 'R' ? P.red : P.blue, sx = stu(id)?.sexe || P.guest[side].sexe;
     return `<div class="vs-card ${side === 'R' ? 'red' : 'blue'}"><span class="corner">Coin ${side === 'R' ? 'rouge' : 'bleu'}</span>
-      <div class="vs-figure">${BFDraw.fighter({sexe: sx, color: COL[side].c, dark: COL[side].d})}</div>
+      <div class="vs-figure">${BFDraw.fighter({sexe: sx, color: COL[side].c, dark: COL[side].d, mirror: side === 'R'})}</div>
       <select data-field="prep" data-k="${side === 'R' ? 'red' : 'blue'}">${opts(id, fightPool, P.free ? 'Choisir le tireur' : '—')}</select>
       <div class="seg small">${['G', 'F'].map(v => `<button class="${sx === v ? 'on' : ''}" data-action="prepSex" data-side="${side}" data-v="${v}">${v === 'G' ? 'Garçon' : 'Fille'}</button>`).join('')}</div>
       ${id ? adviceHTML(n, id) : ''}</div>`; };
-  const nbJP = +SET().nbJP || 0;
+  const rest = jPool.filter(id => ![P.red, P.blue, P.jc, P.jp[0], P.jp[1]].includes(id));
   const next = g && !P.free ? todoList(n, g.id).filter(a => a.id !== P.aid).slice(0, 4) : [];
   return `<div class="prep-body"><div class="prep-main card ${g && !P.free ? 'gzone colored' : ''}" style="${g ? gStyle(g) : ''}">
       <div class="row between"><span class="pill">${gDot(g)}${P.free ? 'Assaut libre' : `Assaut ${done + 1} / ${all.length}`}</span><span class="note" style="font-weight:700">${t.R} reprise${t.R > 1 ? 's' : ''} de ${fmt(t.rep)}${t.R > 1 ? ` · récupération ${fmt(t.rec)}` : ''}</span></div>
       <div class="vs">${card('R')}<div class="vs-mid"><span>VS</span></div>${card('B')}</div>
-      <div class="judges"><label>⚖️ Juge central<select data-field="prep" data-k="jc">${opts(P.jc, jPool, '— aucun —')}</select></label>
-        ${Array.from({length: nbJP}, (_, i) => `<label>📋 Juge de points ${nbJP > 1 ? i + 1 : ''}<select data-field="prep" data-k="jp" data-i="${i}">${opts(P.jp[i] || '', jPool, '— aucun —')}</select></label>`).join('')}</div>
+      <div class="judges"><label>⚖️ Arbitre (juge central)<select data-field="prep" data-k="jc">${opts(P.jc, jPool, '— aucun —')}</select></label>
+        <label class="wR">📋 Coach rouge (juge de coin)<select data-field="prep" data-k="jp" data-i="0">${opts(P.jp[0] || '', jPool, '— aucun —')}</select></label>
+        <label class="wB">📋 Coach bleu (juge de coin)<select data-field="prep" data-k="jp" data-i="1">${opts(P.jp[1] || '', jPool, '— aucun —')}</select></label></div>
+      ${rest.length ? `<p class="note" style="margin:0">💤 Repos : <b>${rest.map(nameOf).map(esc).join(', ')}</b></p>` : ''}
+      <p class="note" style="margin:0">Les coachs saisissent les touches de leur tireur (rouge à gauche, bleu à droite) et le conseillent pendant la récupération.</p>
       <div class="row between"><button class="btn ghost" data-action="prepSkip" ${P.free ? 'hidden' : ''}>Passer cet assaut</button><button class="btn go" data-action="prepStart">🥊 Commencer l'assaut</button></div></div>
-    <aside>${pil ? `<div class="pil-card"><b>🏛 Pilier : ${esc(pil.n)}</b><ul>${pil.cr.map(c => `<li>${esc(c)}</li>`).join('')}</ul><div class="note">Le juge de points l'observe pendant l'assaut.</div></div>` : ''}
-      ${next.length ? `<div class="card" style="margin-top:14px"><h3>À suivre</h3><ol class="next-list">${next.map(a => `<li><span class="wR">${esc(nameOf(a.red))}</span> – <span class="wB">${esc(nameOf(a.blue))}</span><div class="note">⚖️ ${esc(nameOf(a.jc) || '—')}</div></li>`).join('')}</ol></div>` : ''}
+    <aside>${pil ? `<div class="pil-card"><b>🏛 Pilier : ${esc(pil.n)}</b><ul>${pil.cr.map(c => `<li>${esc(c)}</li>`).join('')}</ul><div class="note">Chaque coach l'observe chez son tireur.</div></div>` : ''}
+      ${next.length ? `<div class="card" style="margin-top:14px"><h3>À suivre</h3><ol class="next-list">${next.map(a => `<li><span class="wR">${esc(nameOf(a.red))}</span> – <span class="wB">${esc(nameOf(a.blue))}</span><div class="note">⚖️ ${esc(nameOf(a.jc) || '—')} · 📋 ${(a.jp || []).filter(Boolean).map(nameOf).map(esc).join(' / ') || '—'}</div></li>`).join('')}</ol></div>` : ''}
       ${g && !P.free ? `<div class="card" style="margin-top:14px"><h3>Classement</h3>${rankingTable(n, g, true)}</div>` : ''}</aside></div>`;
 }
 function startAssault() {
@@ -632,8 +650,8 @@ function startAssault() {
   if (!P.red || !P.blue) return toast('Choisissez les deux tireurs');
   if (P.red === P.blue) return toast('Choisissez deux tireurs différents');
   const roles = [P.jc, ...P.jp].filter(Boolean);
-  if (roles.some(r => r === P.red || r === P.blue)) return toast('Un tireur ne peut pas juger son propre assaut');
-  if (new Set(roles).size !== roles.length) return toast('Chaque juge doit être différent');
+  if (roles.some(r => r === P.red || r === P.blue)) return toast('Un tireur ne peut pas être arbitre ou coach de son propre assaut');
+  if (new Set(roles).size !== roles.length) return toast('Un élève ne peut avoir qu\'un seul rôle');
   const g = groupById(P.gid);
   if (!P.free) {
     const a = S.assaults.find(x => x.id === P.aid);
@@ -642,12 +660,12 @@ function startAssault() {
       if (!other) return toast('Ces deux tireurs ont déjà fait leur assaut');
       [other.red, other.blue] = [a.red, a.blue];
     }
-    Object.assign(a, {red: P.red, blue: P.blue, jc: P.jc, jp: P.jp.filter(Boolean)});
+    Object.assign(a, {red: P.red, blue: P.blue, jc: P.jc, jp: [P.jp[0] || '', P.jp[1] || '']});
   }
   const t = timing(n, P.free ? 0 : presentMembers(n, g).length);
   const fighter = (id, side) => { const s = stu(id); return {id, name: fullName(s), sexe: s ? s.sexe : P.guest[side].sexe}; };
-  ROOT.live = {cid: S.id, n, aid: P.aid, gid: P.gid, free: P.free, R: fighter(P.red, 'R'), B: fighter(P.blue, 'B'), jc: P.jc, jp: P.jp.filter(Boolean),
-    events: [], ench: {R: null, B: null}, pil: lessonPil(n), obs: {R: [], B: []},
+  ROOT.live = {cid: S.id, n, aid: P.aid, gid: P.gid, free: P.free, R: fighter(P.red, 'R'), B: fighter(P.blue, 'B'), jc: P.jc, jp: [P.jp[0] || '', P.jp[1] || ''],
+    events: [], ench: {R: null, B: null}, bonus: {R: null, B: null}, bonusPick: {R: 0, B: 0}, pil: lessonPil(n), obs: {R: [], B: []},
     clock: {phase: 'ready', rep: 1, R: t.R, repSec: t.rep, recSec: t.rec, remaining: t.rep * 1000, endAt: null}, startedAt: Date.now()};
   save(); openFight();
 }
@@ -655,7 +673,7 @@ function viewRank() {
   const n = curLesson(), g = myGroup(); if (!g) return '<div class="card">Choisissez d\'abord votre groupe.</div>';
   const list = lessonAssaults(n, g.id);
   return `<div class="card gzone colored" style="${gStyle(g)}"><h3>${gDot(g)}${esc(g.name)} · ${esc(lessonLabel(n))}</h3>${rankingTable(n, g)}</div>
-    <div class="card"><h3>Assauts</h3><div class="table-wrap"><table><tbody>${list.map((a, i) => `<tr><td>${i + 1}</td><td class="${a.winner === 'R' ? 'wR' : ''}">${esc(nameOf(a.red))}</td><td class="${a.winner === 'B' ? 'wB' : ''}">${esc(nameOf(a.blue))}</td><td>⚖️ ${esc(nameOf(a.jc) || '—')}</td>
+    <div class="card"><h3>Assauts</h3><div class="table-wrap"><table><tbody>${list.map((a, i) => `<tr><td>${i + 1}</td><td class="${a.winner === 'R' ? 'wR' : ''}">${esc(nameOf(a.red))}</td><td class="${a.winner === 'B' ? 'wB' : ''}">${esc(nameOf(a.blue))}</td><td>⚖️ ${esc(nameOf(a.jc) || '—')} · 📋 ${(a.jp || []).filter(Boolean).map(nameOf).map(esc).join(' / ') || '—'}</td>
       <td class="n">${a.status === 'done' ? `<b>${a.scoreR} – ${a.scoreB}</b>` : '<span class="status">à faire</span>'}</td></tr>`).join('')}</tbody></table></div></div>`;
 }
 function viewSend() {
@@ -677,7 +695,7 @@ function afterReceive() {
 /* =====================================================================
    PAQUETS QR
    ===================================================================== */
-const SET_KEYS = ['bareme', 'penalite', 'bonusEnch', 'seuil', 'ptsV', 'ptsN', 'ptsD', 'autoNext', 'recupSec', 'transitionSec', 'mode', 'manualSec', 'nbJP', 'totalMin', 'reprises'];
+const SET_KEYS = ['bareme', 'penalite', 'bonusEnch', 'seuil', 'ptsV', 'ptsN', 'ptsD', 'autoNext', 'recupSec', 'transitionSec', 'mode', 'manualSec', 'bonusOn', 'bonusPts', 'bonusArmes', 'totalMin', 'reprises'];
 function lessonPacket(n) {
   S.groups.forEach(g => ensureSchedule(n, g));
   const L = lesson(n), ls = LS(n), set = {}; SET_KEYS.forEach(k => set[k] = SET()[k]);
@@ -708,10 +726,10 @@ function applyLesson(p) {
 }
 function packEvents(a) {
   const m = {}; let k = 0;
-  return (a.events || []).map(e => [e.t === 'R' ? 0 : 1, e.w === 'poing' ? 0 : 1, COUP_KEYS.indexOf(e.c), e.z ? ZONES.indexOf(e.z) : -1, SIDES.indexOf(e.s), e.trop ? 1 : 0, e.ench ? (m[e.ench] = m[e.ench] || ++k) : 0, e.rep, Math.round((e.ts - a.startedAt) / 1000)]);
+  return (a.events || []).map(e => [e.t === 'R' ? 0 : 1, e.w === 'poing' ? 0 : 1, COUP_KEYS.indexOf(e.c), e.z ? ZONES.indexOf(e.z) : -1, SIDES.indexOf(e.s), e.trop ? 1 : 0, e.ench ? (m[e.ench] = m[e.ench] || ++k) : 0, e.rep, Math.round((e.ts - a.startedAt) / 1000), e.bx || 0]);
 }
 const unpackEvents = (arr, start) => (arr || []).map((x, i) => ({id: 'e' + i, t: x[0] ? 'B' : 'R', w: x[1] ? 'pied' : 'poing', c: COUP_KEYS[x[2]], z: x[3] >= 0 ? ZONES[x[3]] : null, s: x[4] >= 0 ? SIDES[x[4]] : null,
-  cat: x[3] >= 0 ? CAT[ZONES[x[3]]] : 'manque', trop: !!x[5], ench: x[6] ? 'x' + x[6] : null, rep: x[7], ts: start + x[8] * 1000}));
+  cat: x[3] >= 0 ? CAT[ZONES[x[3]]] : 'manque', trop: !!x[5], ench: x[6] ? 'x' + x[6] : null, rep: x[7], ts: start + x[8] * 1000, bx: x[9] || 0}));
 function resultsPacket() {
   const n = curLesson();
   const as = S.assaults.filter(a => a.n === n && a.status === 'done' && a.events && a.d === ROOT.deviceId).map(a => [a.id, a.gid || '', a.red, a.blue, a.order || 0, a.jc || '', a.jp || [], a.scoreR, a.scoreB, a.winner,
@@ -912,7 +930,8 @@ const LFIELDS = {lTitle: (L, v) => L.title = v, lTotal: (L, v) => L.totalMin = v
 document.addEventListener('input', e => {
   const t = e.target, f = t.dataset.field; if (!f) return;
   if (f === 'className') { S.name = t.value; saveSoon(); }
-  else if (f === 'set') { const k = t.dataset.k; SET()[k] = t.type === 'range' || t.type === 'number' ? +t.value : t.value; if (k === 'nbJP') Object.values(S.lessons).forEach(L => L.sig = {}); saveSoon(); if (t.tagName === 'SELECT' || t.type === 'range') render(); }
+  else if (f === 'set') { const k = t.dataset.k; SET()[k] = t.type === 'range' || t.type === 'number' ? +t.value : k === 'bonusOn' ? !!t.value : t.value; saveSoon(); if (t.tagName === 'SELECT' || t.type === 'range') render(); }
+  else if (f === 'bonusArme') { const s2 = SET(), c = t.dataset.c; s2.bonusArmes = COUP_KEYS.filter(k => k === c ? t.checked : s2.bonusArmes.includes(k)); saveSoon(); }
   else if (f === 'bareme') { SET().bareme[t.dataset.w][t.dataset.c] = Math.max(0, +t.value || 0); saveSoon(); }
   else if (LFIELDS[f]) { LFIELDS[f](lesson(t.dataset.n), t.value); saveSoon(); }
   else if (f === 'lPil') { lesson(t.dataset.n).pil = snapPil(pilById(t.value)); save(); }
@@ -943,18 +962,56 @@ function openFight() {
   const l = LV(); if (!l) return;
   if (l.cid !== S.id && ROOT.classes[l.cid]) useClass(l.cid);
   BFQR.stop(); $('#fight').hidden = false; document.body.classList.add('fighting');
-  $('#targetR').innerHTML = BFDraw.fighter({sexe: l.B.sexe, color: COL.B.c, dark: COL.B.d});
-  $('#targetB').innerHTML = BFDraw.fighter({sexe: l.R.sexe, color: COL.R.c, dark: COL.R.d});
+  l.bonus = l.bonus || {R: null, B: null}; l.bonusPick = l.bonusPick || {R: 0, B: 0};
+  $('#targetR').innerHTML = BFDraw.fighter({sexe: l.B.sexe, color: COL.B.c, dark: COL.B.d}) + HEAT_LEGEND;
+  $('#targetB').innerHTML = BFDraw.fighter({sexe: l.R.sexe, color: COL.R.c, dark: COL.R.d, mirror: true}) + HEAT_LEGEND;
   for (const s of ['R', 'B']) {
     const m = s === 'B';
     $('#wp' + s).innerHTML = BFDraw.glove(COL[s].c, COL[s].d, m) + `<span class="wl">Poing<small>droit : direct<br>courbe : crochet</small></span>`;
     $('#wf' + s).innerHTML = BFDraw.shoe(COL[s].c, m) + `<span class="wl">Pied<small>droit : chassé<br>courbe : fouetté</small></span>`;
     defaultBanner(s);
   }
-  renderFight(); renderClock(); resizeCanvas(); startClockLoop();
+  coachKey = ''; renderFight(); renderClock(); resizeCanvas(); startClockLoop();
 }
 function closeFight() { $('#fight').hidden = true; document.body.classList.remove('fighting'); stopClockLoop(); }
-function defaultBanner(side) { banner(side, `<b>${esc(LV()[side].name)}</b> frappe : tracez depuis son gant ou sa chaussure jusqu'à la cible.`); }
+const coachOf = (l, side) => nameOf(l.jp?.[side === 'R' ? 0 : 1]);
+function defaultBanner(side) { const l = LV(), c = coachOf(l, side);
+  banner(side, `${c ? `📋 <b>${esc(c)}</b>, coach ${side === 'R' ? 'rouge' : 'bleu'} : ` : ''}tracez les coups de <b>${esc(l[side].name)}</b> depuis le gant ou la chaussure jusqu'à la cible.`); }
+/* ---- Couleur des zones selon le nombre de touches reçues ---- */
+const HEAT = [null, null, {c: '#2E9E44', n: 'très peu touché'}, {c: '#FFD400', n: 'peu touché'}, {c: '#F59E0B', n: 'un peu touché'}, {c: '#D32F2F', n: 'beaucoup touché'}];
+const heatOf = n => HEAT[Math.min(5, n)] || null;
+const HEAT_LEGEND = `<div class="heat-legend"><span><i style="background:#2E9E44"></i>2</span><span><i style="background:#FFD400"></i>3</span><span><i style="background:#F59E0B"></i>4</span><span><i style="background:#D32F2F"></i>5+</span></div>`;
+function heatCounts(events, side) { const m = {}; events.forEach(e => { if (e.t === side && e.z) { const k = e.z + '-' + e.s; m[k] = (m[k] || 0) + 1; } }); return m; }
+function paintHeat(root, events, side) {
+  const m = heatCounts(events, side);
+  root.querySelectorAll('.part').forEach(p => { const h = heatOf(m[p.dataset.zone + '-' + p.dataset.side] || 0);
+    p.classList.toggle('heated', !!h); if (h) p.style.setProperty('--heat', h.c); else p.style.removeProperty('--heat'); });
+}
+/* ---- Temps de coaching : arme bonus ---- */
+let coachKey = '';
+function bonusTarget(c) { return c.phase === 'recup' ? c.rep + 1 : (c.phase === 'ready' && c.rep >= 2 ? c.rep : 0); }
+function renderCoach() {
+  const l = LV(); if (!l) return;
+  const c = l.clock, s = SET(), tr = s.bonusOn && s.bonusArmes.length && c.R > 1 ? bonusTarget(c) : 0;
+  const key = [tr, l.bonusPick.R, l.bonusPick.B, l.bonus.R?.c, l.bonus.B?.c].join('|'); if (key === coachKey) return; coachKey = key;
+  for (const side of ['R', 'B']) {
+    const el = $('#coach' + side), show = tr && l.bonusPick[side] !== tr, coach = coachOf(l, side);
+    el.hidden = !show;
+    if (show) el.innerHTML = `<div class="coach-box"><small>⏱ Temps de coaching · reprise ${tr}</small><h3>${coach ? `📋 ${esc(coach)}, ` : ''}choisis avec <b>${esc(l[side].name)}</b> son arme bonus</h3>
+      <p class="note">Chaque touche valable avec cette arme rapporte <b>+${s.bonusPts}</b> à la reprise ${tr}.</p>
+      <div class="coach-btns">${s.bonusArmes.map(k => `<button class="cbonus" data-bonus="${side}" data-c="${k}"><b>${COUPS[k].l}</b><span>${COUPS[k].w}</span></button>`).join('')}</div>
+      <button class="btn small ghost" data-bonus="${side}" data-c="">Pas d'arme bonus</button></div>`;
+    const tag = $('#fBonus' + side), b = l.bonus[side];
+    tag.hidden = !b; if (b) tag.textContent = `★ ${COUPS[b.c].l} +${s.bonusPts} dès R${b.from}`;
+  }
+}
+$$('.coach').forEach(el => el.addEventListener('click', e => {
+  const b = e.target.closest('[data-bonus]'); if (!b) return;
+  const l = LV(), side = b.dataset.bonus, tr = bonusTarget(l.clock);
+  l.bonusPick[side] = tr; l.bonus[side] = b.dataset.c ? {c: b.dataset.c, from: tr} : null;
+  save(); renderCoach(); buzz(30);
+  banner(side, b.dataset.c ? `★ Arme bonus de <b>${esc(l[side].name)}</b> : <b>${COUPS[b.dataset.c].l}</b> (+${SET().bonusPts} par touche à partir de la reprise ${tr})` : `Pas d'arme bonus pour la reprise ${tr}.`, 'ok');
+}));
 function banner(side, html, cls = '') { const b = $('#banner' + side); b.className = 'banner ' + cls; b.innerHTML = html; }
 function renderFight() {
   const l = LV();
@@ -966,8 +1023,10 @@ function renderFight() {
     const en = l.ench[s], b = $(`.sbtn.ench[data-side="${s}"]`);
     b.classList.toggle('on', !!en); b.textContent = en ? (en.n ? 'Enchaîn. : 2e touche' : 'Enchaîn. : 1re touche') : 'Enchaînement';
   }
-  const g = groupById(l.gid);
-  $('#fJudges').innerHTML = `${g ? gDot(g) + `<b>${esc(g.name)}</b> · ` : ''}⚖️ Juge central : <b>${esc(nameOf(l.jc) || '—')}</b> · 📋 Juges de points : <b>${(l.jp || []).map(nameOf).map(esc).join(', ') || '—'}</b>`;
+  paintHeat($('#targetR'), l.events, 'R'); paintHeat($('#targetB'), l.events, 'B');
+  const g = groupById(l.gid), rest = l.aid ? restOf({...l, n: l.n, gid: l.gid, red: l.R.id, blue: l.B.id}) : [];
+  $('#fJudges').innerHTML = `${g ? gDot(g) + `<b>${esc(g.name)}</b> · ` : ''}⚖️ Arbitre : <b>${esc(nameOf(l.jc) || '—')}</b> · <span class="wR">📋 Coach rouge :</span> <b>${esc(coachOf(l, 'R') || '—')}</b> · <span class="wB">📋 Coach bleu :</span> <b>${esc(coachOf(l, 'B') || '—')}</b>${rest.length ? ` · 💤 ${rest.map(nameOf).map(esc).join(', ')}` : ''}`;
+  renderCoach();
 }
 
 /* ---- Chrono ---- */
@@ -994,6 +1053,7 @@ function renderClock() {
   $('#cStart').textContent = {ready: 'Départ', run: 'Arrêt', pause: 'Reprendre', recup: 'Reprise !', end: 'Résultat'}[c.phase];
   $('#cSkip').textContent = c.phase === 'recup' ? 'Fin de récup.' : 'Fin de reprise';
   $('#cSkip').disabled = c.phase === 'end';
+  renderCoach();
 }
 function phaseEnd() {
   const l = LV(), c = l.clock;
@@ -1034,7 +1094,7 @@ let arect = arena.getBoundingClientRect();
 function resizeCanvas() { arect = arena.getBoundingClientRect(); const dpr = window.devicePixelRatio || 1; cv.width = Math.round(arect.width * dpr); cv.height = Math.round(arect.height * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
 new ResizeObserver(resizeCanvas).observe(arena);
 const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-const gestures = new Map(); let trails = [], raf = null;
+const gestures = new Map(); let trails = [], impacts = [], raf = null, lastXY = null;
 function loop() {
   ctx.clearRect(0, 0, arect.width, arect.height);
   const now = performance.now();
@@ -1047,7 +1107,15 @@ function loop() {
     if (t.label) { const [x, y] = t.pts[t.pts.length - 1]; ctx.font = 'italic 800 24px "Barlow Condensed", sans-serif'; ctx.lineWidth = 6; ctx.strokeStyle = '#fff';
       ctx.strokeText(t.label, x - arect.left + 12, y - arect.top - 14); ctx.fillText(t.label, x - arect.left + 12, y - arect.top - 14); }
   }
-  ctx.globalAlpha = 1; raf = trails.length ? requestAnimationFrame(loop) : null;
+  impacts = impacts.filter(m => now - m.t0 < 650);
+  for (const m of impacts) {
+    const k = (now - m.t0) / 650, r = 14 + 34 * Math.sqrt(k), x = m.x - arect.left, y = m.y - arect.top;
+    ctx.globalAlpha = 1 - k; ctx.fillStyle = m.color; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
+    ctx.beginPath(); for (let i = 0; i < 20; i++) { const a = i * Math.PI / 10, rr = i % 2 ? r * .45 : r; ctx.lineTo(x + rr * Math.cos(a), y + rr * Math.sin(a)); } ctx.closePath(); ctx.fill(); ctx.stroke();
+    if (m.txt) { ctx.globalAlpha = Math.min(1, 2 - 2 * k); ctx.font = 'italic 800 26px "Barlow Condensed", sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 5; ctx.strokeStyle = '#13285A'; ctx.fillStyle = '#fff';
+      ctx.strokeText(m.txt, x, y - r - 6); ctx.fillText(m.txt, x, y - r - 6); ctx.textAlign = 'start'; }
+  }
+  ctx.globalAlpha = 1; raf = trails.length || impacts.length ? requestAnimationFrame(loop) : null;
 }
 const kick = () => { if (!raf) raf = requestAnimationFrame(loop); };
 function classify(pts) {
@@ -1091,7 +1159,7 @@ function endGesture(e, cancel) {
   if (c.len < 40) { t.t0 = performance.now() - 900; kick(); toast('Geste trop court : glissez de l\'arme vers la cible'); return; }
   const coup = g.weapon === 'poing' ? (c.curved ? 'crochet' : 'direct') : (c.curved ? 'fouette' : 'chasse');
   t.color = c.curved ? cssv('--curve') : cssv('--straight'); t.label = COUPS[coup].l; t.t0 = performance.now(); kick();
-  const h = hitAt(e.clientX, e.clientY, g.side);
+  const h = hitAt(e.clientX, e.clientY, g.side); lastXY = [e.clientX, e.clientY];
   if (h.part) record(g.side, g.weapon, coup, h.part.dataset.zone, h.part.dataset.side);
   else if (h.miss) record(g.side, g.weapon, coup, null, null);
   else setPending(g.side, {weapon: g.weapon, coup});
@@ -1104,7 +1172,7 @@ function setPending(side, p) {
   if (p) banner(side, `<b>${COUPS[p.coup].l}</b> du ${p.weapon} : touchez la cible <button class="linkbtn" data-cancel="${side}">annuler</button>`, 'await');
 }
 $$('.target').forEach(t => t.addEventListener('click', e => {
-  const p = e.target.closest('.part'); if (!p) return; const side = t.dataset.side;
+  const p = e.target.closest('.part'); if (!p) return; const side = t.dataset.side; lastXY = [e.clientX, e.clientY];
   if (pending[side]) record(side, pending[side].weapon, pending[side].coup, p.dataset.zone, p.dataset.side);
   else toast('Commencez le geste sur le gant ou la chaussure');
 }));
@@ -1112,6 +1180,7 @@ $$('.half').forEach(h => h.addEventListener('click', e => { const c = e.target.c
 function record(side, weapon, coup, zone, zside) {
   const l = LV();
   const e = {id: uid(), ts: Date.now(), t: side, w: weapon, c: coup, z: zone || null, s: zside || null, cat: zone ? CAT[zone] : 'manque', trop: false, rep: l.clock.rep, ench: null};
+  const bn = l.bonus?.[side]; if (bn && bn.c === coup && l.clock.rep >= bn.from) e.bx = +SET().bonusPts || 0;
   let enchMsg = '';
   const en = l.ench[side];
   if (en) {
@@ -1123,8 +1192,10 @@ function record(side, weapon, coup, zone, zside) {
   l.events.push(e); setPending(side, null); save(); renderFight();
   const p = ptsOf(e), where = zone ? ZL[zone] : 'dans le vide';
   const note = zone && CAT[zone] === 'garde' ? ' (sur la garde)' : (zone && p === 0 ? ' (cible non valable)' : '');
-  banner(side, `<b>${COUPS[coup].l}</b> du ${weapon} → ${where}${note}${enchMsg}<span class="pts">${p > 0 ? '+' + p : p}</span>`, p > 0 ? 'ok' : 'zero');
+  banner(side, `<b>${COUPS[coup].l}</b> du ${weapon} → ${where}${note}${e.bx && p > 0 ? ` · <b>★ arme bonus +${e.bx}</b>` : ''}${enchMsg}<span class="pts">${p > 0 ? '+' + p : p}</span>`, p > 0 ? 'ok' : 'zero');
   buzz(p > 0 ? 25 : 10);
+  if (zone && lastXY) { impacts.push({x: lastXY[0], y: lastXY[1], t0: performance.now(), color: p > 0 ? '#F29A12' : '#9AA3B5', txt: p > 0 ? (e.bx ? `★ +${p}` : `+${p}`) : ''}); kick(); }
+  lastXY = null;
   if (zone) { const g = $(`#target${side} .part[data-zone="${zone}"][data-side="${zside}"]`); if (g) { g.classList.add('hit'); setTimeout(() => g.classList.remove('hit'), 650); } }
 }
 $$('.side-ctrl').forEach(c => c.addEventListener('click', e => {
@@ -1160,7 +1231,7 @@ function result() { const l = LV(), sR = scoreOf(l.events, 'R'), sB = scoreOf(l.
 function obsBlock(side) {
   const l = LV(), pil = l.pil; if (!pil || !pil.cr.length) return '';
   const cur = l.obs[side] || [];
-  return `<div class="res-obs"><h3 style="color:var(--orange)">🏛 ${esc(pil.n)} · observé par le juge de points</h3>${pil.cr.map((c, i) => `<div class="obs-row"><div class="obs-c">${esc(c)}</div><div class="obs-btns">${[1, 2, 3, 4].map(v =>
+  return `<div class="res-obs"><h3 style="color:var(--orange)">🏛 ${esc(pil.n)} · observé par le coach</h3>${pil.cr.map((c, i) => `<div class="obs-row"><div class="obs-c">${esc(c)}</div><div class="obs-btns">${[1, 2, 3, 4].map(v =>
     `<button class="obtn ${cur[i] === v ? 'on' : ''}" style="--cc:${OBS[v].c};--cf:${OBS[v].f}" data-obs="${side}" data-i="${i}" data-v="${v}">${OBS[v].n}</button>`).join('')}</div></div>`).join('')}</div>`;
 }
 function openResult() {
@@ -1171,12 +1242,14 @@ function openResult() {
       <span>Touches valables</span><b>${st.valid} / ${st.tent}</b><span>Poing / pied</span><b>${st.poing} / ${st.pied}</b>
       <span>Directs · crochets</span><b>${st.coups.direct.v} · ${st.coups.crochet.v}</b><span>Chassés · fouettés</span><b>${st.coups.chasse.v} · ${st.coups.fouette.v}</b>
       <span>Visage · tronc · bas</span><b>${st.cats.tete} · ${st.cats.tronc} · ${st.cats.bas}</b><span>Sur la garde · dans le vide</span><b>${st.cats.garde} · ${st.cats.manque}</b>
-      <span>Enchaînements réussis</span><b>${st.ok} / ${st.tries}</b><span>Frappes trop fortes</span><b>${st.trop}</b></div>${obsBlock(side)}</div>`; };
+      <span>Enchaînements réussis</span><b>${st.ok} / ${st.tries}</b><span>Touches arme bonus</span><b>${st.bonus}</b><span>Frappes trop fortes</span><b>${st.trop}</b></div>
+      <div class="res-heat" id="rh${side}">${BFDraw.fighter({sexe: l[OTHER[side]].sexe, color: COL[OTHER[side]].c, dark: COL[OTHER[side]].d, mirror: side === 'B'})}<span class="note">Zones touchées sur ${esc(l[OTHER[side]].name)}</span></div>${obsBlock(side)}</div>`; };
   $('#resultBody').innerHTML = `<div class="result">
     <div class="res-head ${r.winner}"><small>Résultat de l'observation</small><h2>${r.winner === 'N' ? 'Match nul' : 'Victoire de ' + esc(l[r.winner].name)}</h2>
       <div class="res-score"><span>${r.sR}</span><span style="font-size:30px;opacity:.7">–</span><span>${r.sB}</span></div></div>
     <div class="res-cols">${col('R')}${col('B')}</div>
     <div class="res-foot" id="resFoot"><button class="btn" id="resBack">Corriger l'observation</button><button class="btn go" id="resOk">✓ Valider le résultat</button></div></div>`;
+  paintHeat($('#rhR'), l.events, 'R'); paintHeat($('#rhB'), l.events, 'B');
   $('#resBack').onclick = () => $('#resultDlg').close();
   $('#resOk').onclick = commitResult;
   if (!$('#resultDlg').open) $('#resultDlg').showModal();
@@ -1226,29 +1299,29 @@ function exportXlsx() {
   add('Classements', cl.length ? cl : [['Aucun assaut terminé']], [8, 28, 8, 10, 8, 10, 16, 15, 16, 11]);
   const sorted = [...S.assaults].sort((a, b) => a.n - b.n || gName(a.gid).localeCompare(gName(b.gid)) || (a.order || 0) - (b.order || 0));
   const nm = (a, s) => a.names?.[s] || nameOf(s === 'R' ? a.red : a.blue);
-  add('Assauts', [['Leçon', 'Groupe', 'Tireur rouge', 'Tireur bleu', 'Score rouge', 'Score bleu', 'Vainqueur', 'Juge central', 'Juges de points', 'Reprises', 'Fin', 'Statut'],
+  add('Assauts', [['Leçon', 'Groupe', 'Tireur rouge', 'Tireur bleu', 'Score rouge', 'Score bleu', 'Vainqueur', 'Arbitre', 'Coach rouge', 'Coach bleu', 'Repos', 'Reprises', 'Fin', 'Statut'],
     ...sorted.map(a => [a.n, gName(a.gid), nm(a, 'R'), nm(a, 'B'), a.status === 'done' ? a.scoreR : '', a.status === 'done' ? a.scoreB : '', a.status === 'done' ? (a.winner === 'N' ? 'Nul' : nm(a, a.winner)) : '',
-      nameOf(a.jc), (a.jp || []).map(nameOf).join(', '), a.reprises ? `${a.reprises} × ${fmt(a.repSec)}` : '', a.endedAt ? new Date(a.endedAt).toLocaleString('fr-FR') : '', a.status === 'done' ? 'terminé' : 'à faire'])],
-    [7, 14, 24, 24, 11, 10, 24, 22, 34, 10, 20, 9]);
+      nameOf(a.jc), nameOf(a.jp?.[0]), nameOf(a.jp?.[1]), restOf(a).map(nameOf).join(', '), a.reprises ? `${a.reprises} × ${fmt(a.repSec)}` : '', a.endedAt ? new Date(a.endedAt).toLocaleString('fr-FR') : '', a.status === 'done' ? 'terminé' : 'à faire'])],
+    [7, 14, 24, 24, 11, 10, 24, 22, 22, 22, 34, 10, 20, 9]);
   const se = [['Élève', 'Groupe', 'Sexe', 'Assauts', 'Victoires', 'Nuls', 'Défaites', 'Points marqués', 'Points encaissés', 'Coups observés', 'Touches valables', 'Efficacité (%)',
     'Directs (tentés)', 'Directs (valables)', 'Crochets (tentés)', 'Crochets (valables)', 'Chassés (tentés)', 'Chassés (valables)', 'Fouettés (tentés)', 'Fouettés (valables)',
-    'Touches visage', 'Touches tronc', 'Touches ligne basse', 'Touches bras/garde', 'Dans le vide', 'Frappes trop fortes', 'Enchaînements tentés', 'Enchaînements réussis', 'Juge central (nb)', 'Juge de points (nb)']];
+    'Touches visage', 'Touches tronc', 'Touches ligne basse', 'Touches bras/garde', 'Dans le vide', 'Frappes trop fortes', 'Enchaînements tentés', 'Enchaînements réussis', 'Touches arme bonus', 'Arbitre (nb)', 'Coach (nb)', 'Repos (nb)']];
   for (const s of sortedStudents()) { const st = studentStats(s.id);
     se.push([fullName(s), groupOf(s.id)?.name || '', s.sexe, st.J, st.V, st.N, st.D, st.pm, st.pe, st.tent, st.valid, st.tent ? Math.round(100 * st.valid / st.tent) : '',
-      ...COUP_KEYS.flatMap(c => [st.coups[c].t, st.coups[c].v]), st.cats.tete, st.cats.tronc, st.cats.bas, st.cats.garde, st.cats.manque, st.trop, st.tries, st.ok, st.jc, st.jp]); }
+      ...COUP_KEYS.flatMap(c => [st.coups[c].t, st.coups[c].v]), st.cats.tete, st.cats.tronc, st.cats.bas, st.cats.garde, st.cats.manque, st.trop, st.tries, st.ok, st.bonus, st.jc, st.jp, st.rest]); }
   add('Stats élèves', se, [26, 12, 6, ...Array(27).fill(12)]);
   const pl = [['Élève', 'Groupe', 'Leçon', 'Pilier', 'Critère', 'Observation']];
   for (let n = 1; n <= N; n++) { const p = lessonPil(n); if (!p) continue;
     for (const s of sortedStudents()) { const o = obsAgg(n, s.id); if (!o) continue; p.cr.forEach((c, i) => pl.push([fullName(s), groupOf(s.id)?.name || '', n, p.n, c, o[i] ? OBS[o[i]].n : ''])); } }
   add('Piliers', pl, [26, 12, 7, 26, 44, 12]);
-  const to = [['Leçon', 'Groupe', 'Tireur', 'Coin', 'Adversaire', 'Reprise', 'Heure', 'Arme', 'Coup', 'Cible', 'Côté', 'Zone', 'Points', 'Trop fort', 'Enchaînement']];
+  const to = [['Leçon', 'Groupe', 'Tireur', 'Coin', 'Adversaire', 'Reprise', 'Heure', 'Arme', 'Coup', 'Cible', 'Côté', 'Zone', 'Points', 'Trop fort', 'Enchaînement', 'Arme bonus']];
   for (const a of sorted) { if (a.status !== 'done') continue;
     for (const e of a.events || []) to.push([a.n, gName(a.gid), nm(a, e.t), e.t === 'R' ? 'rouge' : 'bleu', nm(a, OTHER[e.t]), e.rep, new Date(e.ts).toLocaleTimeString('fr-FR'), e.w, COUPS[e.c].l,
-      e.z ? ZL[e.z] : 'Dans le vide', e.s === 'g' ? 'gauche' : e.s === 'd' ? 'droite' : '', CATL[e.cat], ptsOf(e), e.trop ? 'oui' : '', e.ench ? 'oui' : '']); }
+      e.z ? ZL[e.z] : 'Dans le vide', e.s === 'g' ? 'gauche' : e.s === 'd' ? 'droite' : '', CATL[e.cat], ptsOf(e), e.trop ? 'oui' : '', e.ench ? 'oui' : '', e.bx ? '+' + e.bx : '']); }
   add('Touches', to, [7, 14, 24, 7, 24, 8, 10, 7, 10, 18, 8, 12, 7, 9, 13]);
   const s = SET();
   add('Cycle', [['Classe', S.name], ['Barème poing (visage / tronc / bas / garde)', ['tete', 'tronc', 'bas', 'garde'].map(c => s.bareme.poing[c]).join(' / ')], ['Barème pied (visage / tronc / bas / garde)', ['tete', 'tronc', 'bas', 'garde'].map(c => s.bareme.pied[c]).join(' / ')],
-    ['Frappe trop forte', -s.penalite], ['Bonus enchaînement', s.bonusEnch], ['Classement V / N / D', `${s.ptsV} / ${s.ptsN} / ${s.ptsD}`], ['Juges de points par assaut', s.nbJP], [],
+    ['Frappe trop forte', -s.penalite], ['Bonus enchaînement', s.bonusEnch], ['Classement V / N / D', `${s.ptsV} / ${s.ptsN} / ${s.ptsD}`], ['Arme bonus', s.bonusOn ? `+${s.bonusPts} · ${s.bonusArmes.map(k => COUPS[k].l).join(', ')}` : 'désactivée'], [],
     ['Leçon', 'Titre', 'Pilier', 'Tournoi (min)', 'Reprises'], ...Array.from({length: N}, (_, i) => { const n = i + 1, ls = LS(n); return [n, lesson(n).title, lessonPil(n)?.n || '', ls.totalMin, ls.reprises]; })], [40, 26, 26, 14, 10]);
   XLSX.writeFile(wb, `ObservBF_${(S.name || 'classe').replace(/[^\w-]+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }

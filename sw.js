@@ -1,5 +1,5 @@
 // Observ'BF — fonctionnement hors ligne. Changez VERSION à chaque mise à jour publiée.
-const VERSION = 'observbf-v3.0.0';
+const VERSION = 'observbf-v3.1.0';
 const ASSETS = ['./', './index.html', './css/app.css', './js/app.js', './js/draw.js', './js/qr.js', './lib/xlsx.full.min.js', './lib/qrcode.js', './lib/jsQR.js', './lib/zxing-reader.js', './lib/zxing_reader.wasm',
   './img/logo.webp', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/apple-touch-icon.png',
   './fonts/barlow-condensed-latin-600-normal.woff2', './fonts/barlow-condensed-latin-800-normal.woff2', './fonts/barlow-condensed-latin-800-italic.woff2',

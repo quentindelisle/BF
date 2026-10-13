@@ -283,6 +283,29 @@ body.fighting{overflow:hidden}
 .target svg{position:absolute;inset:0;width:100%;height:100%}
 .target .part{cursor:pointer}
 .hl{opacity:0;transition:opacity .12s;pointer-events:none}
+.heat{opacity:0;transition:opacity .35s;pointer-events:none}
+.heat *{fill:var(--heat)!important;stroke:none!important}
+.part.heated .heat{opacity:.72}
+.heat-legend{position:absolute;left:4px;bottom:2px;display:flex;gap:6px;font:700 11px var(--font);color:var(--muted);background:rgba(255,255,255,.8);border-radius:8px;padding:3px 6px;pointer-events:none}
+.heat-legend span{display:flex;align-items:center;gap:3px}
+.heat-legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
+.blue .heat-legend{left:auto;right:4px}
+.coach{grid-area:target;z-index:6;display:flex;align-items:center;justify-content:center;padding:6px}
+.coach-box{background:#fff;border:4px solid var(--orange);border-radius:18px;box-shadow:0 12px 30px rgba(19,40,90,.25);padding:14px;display:flex;flex-direction:column;gap:8px;max-width:100%}
+.coach-box small{font:700 12px var(--font);letter-spacing:.12em;text-transform:uppercase;color:var(--orange)}
+.coach-box h3{font:800 italic 21px/1.15 var(--display);color:var(--ink);text-transform:none;letter-spacing:0;margin:0}
+.coach-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cbonus{border:3px solid var(--navy);background:#fff;border-radius:14px;padding:10px 6px;display:flex;flex-direction:column;align-items:center}
+.cbonus b{font:800 italic 22px var(--display)}
+.cbonus span{font-size:12px;color:var(--muted)}
+.cbonus:active{background:var(--orange);color:#fff}
+.sc-bonus{margin-top:3px;align-self:flex-start;background:#FFD400;color:var(--navy);font-weight:800;font-size:12px;border-radius:999px;padding:2px 9px}
+.sc-info.right .sc-bonus{align-self:flex-end}
+.res-heat{height:190px;position:relative;margin-top:8px;text-align:center}
+.res-heat svg{height:170px;width:100%}
+.res-heat .hl{opacity:0}
+label.chk{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:15px;background:var(--soft);border:2px solid var(--line);border-radius:10px;padding:6px 10px}
+label.chk input{width:20px;height:20px}
 .hl *{fill:var(--orange)!important;stroke:var(--orange)!important}
 .part.hover .hl{opacity:.45} .part.hit .hl{opacity:.85}
 .target.await .part .hl{animation:pulse 1.1s ease-in-out infinite}
