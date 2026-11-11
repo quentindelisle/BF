@@ -4,25 +4,30 @@
    parcours prof en 4 étapes, échanges par QR codes, paramètres du cycle, piliers.
    ===================================================================== */
 'use strict';
-const APP_VERSION = '3.1.0';
+const APP_VERSION = '3.2.0';
 const ROOT_KEY = 'observbf.v3';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const clone = o => JSON.parse(JSON.stringify(o));
 const rnd = n => { const a = 'abcdefghijkmnpqrstuvwxyz23456789'; let s = ''; for (let i = 0; i < n; i++) s += a[Math.floor(Math.random() * a.length)]; return s; };
 const uid = () => rnd(6);
+const cap1 = s => s.charAt(0).toUpperCase() + s.slice(1);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = sec => { sec = Math.max(0, Math.round(sec)); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); };
 const fmtLong = sec => { sec = Math.round(sec); const m = Math.floor(sec / 60), s = sec % 60; return m ? `${m} min${s ? ' ' + String(s).padStart(2, '0') : ''}` : `${s} s`; };
 const capName = s => String(s || '').toLowerCase().replace(/(^|[\s\-'’])([a-zà-ÿ])/g, (m, a, b) => a + b.toUpperCase()).trim();
 
 /* ---------------- Référentiel ---------------- */
-const CAT = {tete:'tete', tronc:'tronc', cuisse:'bas', tibia:'bas', epaule:'garde', bras:'garde', avantbras:'garde'};
+const CAT = {tete:'tete', tronc:'tronc', ventre:'tronc', flancs:'tronc', jambes:'bas', cuisse:'bas', tibia:'bas', epaule:'garde', bras:'garde', avantbras:'garde'};
 const ZL = BFDraw.ZL;
-const ZONES = ['tete', 'tronc', 'epaule', 'bras', 'avantbras', 'cuisse', 'tibia'], SIDES = ['c', 'g', 'd'];
+const ZONES = ['tete', 'tronc', 'epaule', 'bras', 'avantbras', 'cuisse', 'tibia', 'ventre', 'flancs', 'jambes'], SIDES = ['c', 'g', 'd'];
 const CATL = {tete:'Visage', tronc:'Tronc', bas:'Ligne basse', garde:'Bras / garde', manque:'Dans le vide'};
 const COUPS = {direct:{l:'Direct', w:'poing'}, crochet:{l:'Crochet', w:'poing'}, chasse:{l:'Chassé', w:'pied'}, fouette:{l:'Fouetté', w:'pied'}};
 const COUP_KEYS = Object.keys(COUPS);
+/* Saisie « sans regarder » : nombre de doigts = hauteur (1 bas · 2 milieu · 3 haut) */
+const BLIND_H = ['bas', 'milieu', 'haut'];
+const BLIND_ZONE = {poing: {haut: ['tete', 'c'], milieu: ['tronc', 'c'], bas: ['ventre', 'c']}, pied: {haut: ['tete', 'c'], milieu: ['flancs', 'c'], bas: ['jambes', 'c']}};
+const BLIND_LAB = {poing: {haut: 'visage', milieu: 'épaules / torse', bas: 'ventre'}, pied: {haut: 'visage', milieu: 'flancs', bas: 'jambes'}};
 const COL = {R:{c:'#E53935', d:'#B71C1C'}, B:{c:'#1E6FE0', d:'#0D47A1'}};
 const OTHER = {R:'B', B:'R'};
 /* Couleurs de groupes : sans rouge ni bleu (réservés aux coins) */
@@ -44,7 +49,7 @@ const DEFAULT_PILIERS = [
   {id:'arb', n:'Arbitrer et juger', cr:['Annonces claires : en garde, allez, stop', 'Sanctionne les frappes trop fortes', 'Compte les touches sans se tromper']}];
 const DEF_BAREME = {poing:{tete:2, tronc:1, bas:0, garde:0}, pied:{tete:3, tronc:2, bas:1, garde:0}};
 const DEF_SET = {nbLessons:6, current:1, totalMin:40, reprises:2, recupSec:30, transitionSec:60, mode:'auto', manualSec:90, bonusOn:true, bonusPts:1, bonusArmes:['direct','crochet','chasse','fouette'],
-  bareme:clone(DEF_BAREME), penalite:1, bonusEnch:1, seuil:0.18, ptsV:3, ptsN:2, ptsD:1, autoNext:10};
+  bareme:clone(DEF_BAREME), penalite:1, bonusEnch:1, seuil:0.18, saisie:'aveugle', ptsV:3, ptsN:2, ptsD:1, autoNext:10};
 
 /* ---------------- État ---------------- */
 let ROOT, S;
@@ -413,22 +418,22 @@ function profMenu() {
 
 /* ---- 1. Classe & élèves ---- */
 function profClasse() {
-  const f = S.students.filter(s => s.sexe === 'F').length;
+  const f = S.students.filter(s => s.sexe === 'F').length, nb = S.students.filter(s => s.sexe === 'N').length;
   return `<div class="card"><div class="row"><label class="field grow">Nom de la classe<input type="text" data-field="className" value="${esc(S.name)}"></label>
       <label class="field grow">Nouvelle classe<input type="text" id="newClass" placeholder="ex. 2nde 4"></label>
       <button class="btn green" data-action="addClass" style="align-self:flex-end">＋ Ajouter</button>
       ${Object.keys(ROOT.classes).length > 1 ? `<button class="btn danger" data-action="delClass" style="align-self:flex-end">🗑 Supprimer « ${esc(S.name)} »</button>` : ''}</div></div>
     <div class="card strong"><h2>Importer la liste (Excel)</h2>
-      <p class="note"><b>NOM Prénom</b> dans la colonne A, ou <b>NOM</b> en A et <b>Prénom</b> en B. Une colonne F/G (ou Sexe) est reconnue si elle existe. Les lignes de titre sont ignorées.</p>
+      <p class="note"><b>NOM Prénom</b> dans la colonne A, ou <b>NOM</b> en A et <b>Prénom</b> en B. Export « Nom · Prénom · Né(e) le · Prénom d'usage · Sexe · Classe · … » reconnu : le prénom d'usage est préféré, la colonne <b>Sexe</b> (M / F / X) choisit le dessin et la colonne <b>Classe</b> peut créer une classe par valeur. Les autres colonnes (allergies, projet d'accompagnement…) ne sont jamais importées.</p>
       <div class="btn-row" style="margin-top:10px"><label class="btn primary file-btn">📂 Choisir un fichier (.xlsx, .csv)<input type="file" id="fileStudents" accept=".xlsx,.xls,.csv,.txt"></label></div></div>
     <div class="card"><h2>Ajouter un élève</h2><form class="row add-form" id="addForm">
       <input type="text" id="addNom" placeholder="NOM" autocomplete="off"><input type="text" id="addPrenom" placeholder="Prénom" autocomplete="off">
-      <div class="seg" id="addSexe"><button type="button" data-v="G" class="on">Garçon</button><button type="button" data-v="F">Fille</button></div>
+      <div class="seg" id="addSexe"><button type="button" data-v="G" class="on">Garçon</button><button type="button" data-v="F">Fille</button><button type="button" data-v="N">Non genré</button></div>
       <button class="btn green" type="submit">＋ Ajouter</button></form></div>
-    <div class="card"><div class="row between"><h2 style="margin:0">${S.students.length} élève(s) <span class="muted" style="font:600 15px var(--font)">${S.students.length ? `· ${f} F · ${S.students.length - f} G` : ''}</span></h2>
+    <div class="card"><div class="row between"><h2 style="margin:0">${S.students.length} élève(s) <span class="muted" style="font:600 15px var(--font)">${S.students.length ? `· ${S.students.length - f - nb} G · ${f} F${nb ? ` · ${nb} non genré` : ''}` : ''}</span></h2>
       ${S.students.length ? '<button class="btn small danger" data-action="clearStudents">Vider la liste</button>' : ''}</div>
-      <p class="note">Touchez G / F pour changer le dessin du combattant (garçon / fille).</p>
-      <div class="tiles-grid">${sortedStudents().map(s => `<div class="stile"><button class="sx ${s.sexe}" data-action="toggleSex" data-sid="${s.id}" aria-label="Garçon ou fille">${s.sexe}</button><span class="nm"><b>${esc(s.nom)}</b> ${esc(s.prenom)}</span><button class="del" data-action="delStudent" data-sid="${s.id}" aria-label="Retirer">×</button></div>`).join('')}</div></div>`;
+      <p class="note">Touchez G / F / N pour changer le dessin du combattant (garçon, fille, non genré).</p>
+      <div class="tiles-grid">${sortedStudents().map(s => `<div class="stile"><button class="sx ${s.sexe}" data-action="toggleSex" data-sid="${s.id}" aria-label="Garçon, fille ou non genré">${s.sexe}</button><span class="nm"><b>${esc(s.nom)}</b> ${esc(s.prenom)}</span><button class="del" data-action="delStudent" data-sid="${s.id}" aria-label="Retirer">×</button></div>`).join('')}</div></div>`;
 }
 
 /* ---- Groupes colorés ---- */
@@ -495,7 +500,8 @@ function profCycle() {
         <label>Bonus enchaînement réussi<input type="number" min="0" max="5" data-field="set" data-k="bonusEnch" value="${s.bonusEnch}"></label>
         <label>Classement V / N / D<span class="row" style="gap:4px"><input type="number" style="width:60px" min="0" max="10" data-field="set" data-k="ptsV" value="${s.ptsV}"><input type="number" style="width:60px" min="0" max="10" data-field="set" data-k="ptsN" value="${s.ptsN}"><input type="number" style="width:60px" min="0" max="10" data-field="set" data-k="ptsD" value="${s.ptsD}"></span></label>
         <label>Assaut suivant automatique (s)<input type="number" min="3" max="60" data-field="set" data-k="autoNext" value="${s.autoNext}"></label>
-        <label style="grid-column:span 2">Geste droit / courbe : ${Math.round(s.seuil * 100)} %<input type="range" min="0.08" max="0.40" step="0.01" data-field="set" data-k="seuil" value="${s.seuil}"><span class="note">À gauche, le moindre arrondi devient une courbe.</span></label>
+        <label style="grid-column:span 2">Mode de saisie des touches<select data-field="set" data-k="saisie"><option value="aveugle" ${s.saisie !== 'classique' ? 'selected' : ''}>Sans regarder : doigts + trajectoire (départ haut = poing, bas = pied)</option><option value="classique" ${s.saisie === 'classique' ? 'selected' : ''}>Classique : du gant ou de la chaussure jusqu'à la cible</option></select></label>
+        <label style="grid-column:span 2">Geste droit / courbe :${Math.round(s.seuil * 100)} %<input type="range" min="0.08" max="0.40" step="0.01" data-field="set" data-k="seuil" value="${s.seuil}"><span class="note">À gauche, le moindre arrondi devient une courbe.</span></label>
       </div></div>`;
 }
 
@@ -625,9 +631,9 @@ function viewPrep() {
   const t = timing(n, P.free ? 0 : presentMembers(n, g).length);
   const card = side => { const id = side === 'R' ? P.red : P.blue, sx = stu(id)?.sexe || P.guest[side].sexe;
     return `<div class="vs-card ${side === 'R' ? 'red' : 'blue'}"><span class="corner">Coin ${side === 'R' ? 'rouge' : 'bleu'}</span>
-      <div class="vs-figure">${BFDraw.fighter({sexe: sx, color: COL[side].c, dark: COL[side].d, mirror: side === 'R'})}</div>
+      <div class="vs-figure">${BFDraw.fighter({sexe: sx, corner: side})}</div>
       <select data-field="prep" data-k="${side === 'R' ? 'red' : 'blue'}">${opts(id, fightPool, P.free ? 'Choisir le tireur' : '—')}</select>
-      <div class="seg small">${['G', 'F'].map(v => `<button class="${sx === v ? 'on' : ''}" data-action="prepSex" data-side="${side}" data-v="${v}">${v === 'G' ? 'Garçon' : 'Fille'}</button>`).join('')}</div>
+      <div class="seg small">${['G', 'F', 'N'].map(v => `<button class="${sx === v ? 'on' : ''}" data-action="prepSex" data-side="${side}" data-v="${v}">${{G: 'Garçon', F: 'Fille', N: 'Non genré'}[v]}</button>`).join('')}</div>
       ${id ? adviceHTML(n, id) : ''}</div>`; };
   const rest = jPool.filter(id => ![P.red, P.blue, P.jc, P.jp[0], P.jp[1]].includes(id));
   const next = g && !P.free ? todoList(n, g.id).filter(a => a.id !== P.aid).slice(0, 4) : [];
@@ -695,7 +701,7 @@ function afterReceive() {
 /* =====================================================================
    PAQUETS QR
    ===================================================================== */
-const SET_KEYS = ['bareme', 'penalite', 'bonusEnch', 'seuil', 'ptsV', 'ptsN', 'ptsD', 'autoNext', 'recupSec', 'transitionSec', 'mode', 'manualSec', 'bonusOn', 'bonusPts', 'bonusArmes', 'totalMin', 'reprises'];
+const SET_KEYS = ['bareme', 'penalite', 'bonusEnch', 'seuil', 'saisie','ptsV', 'ptsN', 'ptsD', 'autoNext', 'recupSec', 'transitionSec', 'mode', 'manualSec', 'bonusOn', 'bonusPts', 'bonusArmes', 'totalMin', 'reprises'];
 function lessonPacket(n) {
   S.groups.forEach(g => ensureSchedule(n, g));
   const L = lesson(n), ls = LS(n), set = {}; SET_KEYS.forEach(k => set[k] = SET()[k]);
@@ -726,10 +732,10 @@ function applyLesson(p) {
 }
 function packEvents(a) {
   const m = {}; let k = 0;
-  return (a.events || []).map(e => [e.t === 'R' ? 0 : 1, e.w === 'poing' ? 0 : 1, COUP_KEYS.indexOf(e.c), e.z ? ZONES.indexOf(e.z) : -1, SIDES.indexOf(e.s), e.trop ? 1 : 0, e.ench ? (m[e.ench] = m[e.ench] || ++k) : 0, e.rep, Math.round((e.ts - a.startedAt) / 1000), e.bx || 0]);
+  return (a.events || []).map(e => [e.t === 'R' ? 0 : 1, e.w === 'poing' ? 0 : 1, COUP_KEYS.indexOf(e.c), e.z ? ZONES.indexOf(e.z) : -1, SIDES.indexOf(e.s), e.trop ? 1 : 0, e.ench ? (m[e.ench] = m[e.ench] || ++k) : 0, e.rep, Math.round((e.ts - a.startedAt) / 1000), e.bx || 0, e.h ? BLIND_H.indexOf(e.h) + 1 : 0, e.inc ? 1 : 0]);
 }
 const unpackEvents = (arr, start) => (arr || []).map((x, i) => ({id: 'e' + i, t: x[0] ? 'B' : 'R', w: x[1] ? 'pied' : 'poing', c: COUP_KEYS[x[2]], z: x[3] >= 0 ? ZONES[x[3]] : null, s: x[4] >= 0 ? SIDES[x[4]] : null,
-  cat: x[3] >= 0 ? CAT[ZONES[x[3]]] : 'manque', trop: !!x[5], ench: x[6] ? 'x' + x[6] : null, rep: x[7], ts: start + x[8] * 1000, bx: x[9] || 0}));
+  cat: x[3] >= 0 ? CAT[ZONES[x[3]]] : 'manque', trop: !!x[5], ench: x[6] ? 'x' + x[6] : null, rep: x[7], ts: start + x[8] * 1000, bx: x[9] || 0, h: x[10] ? BLIND_H[x[10] - 1] : undefined, inc: !!x[11]}));
 function resultsPacket() {
   const n = curLesson();
   const as = S.assaults.filter(a => a.n === n && a.status === 'done' && a.events && a.d === ROOT.deviceId).map(a => [a.id, a.gid || '', a.red, a.blue, a.order || 0, a.jc || '', a.jp || [], a.scoreR, a.scoreB, a.winner,
@@ -786,8 +792,30 @@ async function readSheetRows(file) {
 }
 const HEADER_RX = /^(nom|noms|élève|élèves|eleve|eleves|nom\s*(et)?\s*pr[ée]nom|pr[ée]nom|identit[ée]|classe|sexe|genre)\b/i;
 const isNameLike = s => !!s && /^[A-Za-zÀ-ÖØ-öø-ÿ'’\- .]+$/.test(s) && !/\d/.test(s);
-const sexOf = v => { v = String(v || '').trim().toUpperCase(); if (/^(F|FILLE|FÉMININ|FEMININ|FEM)$/.test(v)) return 'F'; if (/^(G|M|H|GARÇON|GARCON|MASCULIN|MASC)$/.test(v)) return 'G'; return null; };
+const sexOf = v => { v = String(v || '').trim().toUpperCase(); if (/^(F|FILLE|FÉMININ|FEMININ|FEM)$/.test(v)) return 'F'; if (/^(G|M|H|GARÇON|GARCON|MASCULIN|MASC)$/.test(v)) return 'G'; if (/^(X|N|NB|AUTRE|NON[ -]?GENR[ÉE]|NON[ -]?BINAIRE|NEUTRE)$/.test(v)) return 'N'; return null; };
+/* Export d'un logiciel de vie scolaire : Nom · Prénom · Né(e) le · Prénom d'usage · Sexe · Classe · … (seules 4 colonnes sont lues) */
+const HDR = {nom: /^nom( de famille| d['’]usage)?$/i, prenom: /^pr[ée]noms?$/i, usage: /^pr[ée]nom d['’]usage$/i, sexe: /^(sexe|genre)$/i, classe: /^classe$/i};
+function findHeader(rows) {
+  for (let i = 0; i < Math.min(rows.length, 10); i++) {
+    const cells = rows[i].map(c => String(c || '').trim().replace(/\s+/g, ' ')), idx = k => cells.findIndex(c => HDR[k].test(c));
+    const h = {i, nom: idx('nom'), prenom: idx('prenom'), usage: idx('usage'), sexe: idx('sexe'), classe: idx('classe')};
+    if (h.nom >= 0 && (h.prenom >= 0 || h.usage >= 0)) return h;
+  }
+  return null;
+}
+function parseByHeader(rows, h) {
+  const out = [], cell = (r, k) => k >= 0 ? String(r[k] ?? '').trim().replace(/\s+/g, ' ') : '';
+  rows.slice(h.i + 1).forEach(r => {
+    const nom = cell(r, h.nom); if (!nom || !isNameLike(nom)) return;
+    let prenom = cell(r, h.usage);
+    if (!prenom) { const all = cell(r, h.prenom); prenom = all.split(/[ ,]+/)[0] || all; }
+    const sx = sexOf(cell(r, h.sexe));
+    out.push({nom: nom.toUpperCase(), prenom: capName(prenom), sexe: sx || 'G', known: !!sx, classe: cell(r, h.classe)});
+  });
+  return out;
+}
 function parseStudents(rows) {
+  const hd = findHeader(rows); if (hd) { const r = parseByHeader(rows, hd); if (r.length) return r; }
   let sxCol = -1;
   for (let j = 1; j < 8 && sxCol < 0; j++) { const v = rows.map(r => String(r[j] || '').trim()).filter(Boolean); if (v.length >= 2 && v.filter(sexOf).length >= v.length * 0.7) sxCol = j; }
   const out = [];
@@ -811,21 +839,39 @@ function parseStudents(rows) {
   });
   return out;
 }
+const addStudentsTo = (cls, list) => { let n = 0; list.forEach(p => { if (cls.students.some(s => s.nom === p.nom && s.prenom.toLowerCase() === p.prenom.toLowerCase())) return; cls.students.push({id: rnd(5), nom: p.nom, prenom: p.prenom, sexe: p.sexe}); n++; }); return n; };
 async function importStudentsFile(file) {
   try {
     const list = parseStudents(await readSheetRows(file));
     if (!list.length) return toast('Aucun élève reconnu dans ce fichier', 3500);
+    const names = [...new Set(list.map(p => p.classe).filter(Boolean))];
     let mode = 'add';
-    if (S.students.length) {
-      mode = await choiceBox(`Importer ${list.length} élève(s)`, `La classe « ${esc(S.name)} » contient déjà ${S.students.length} élève(s).`, [{label: 'Ajouter à la liste', value: 'add', cls: 'primary'}, {label: 'Remplacer la liste', value: 'replace', cls: 'red'}]);
+    if (names.length > 1) {
+      mode = await choiceBox(`Importer ${list.length} élèves de ${names.length} classes`, `Le fichier contient les classes : ${esc(names.slice(0, 8).join(', '))}${names.length > 8 ? '…' : ''}.`,
+        [{label: `Créer une classe par valeur (${names.length})`, value: 'split', cls: 'primary'}, {label: `Tout mettre dans « ${esc(S.name)} »`, value: 'add'}]);
       if (!mode) return;
     }
-    if (mode === 'replace') { S.students = []; S.groups.forEach(g => g.members = []); S.assaults = []; Object.values(S.lessons).forEach(L => { L.att = {}; L.sig = {}; }); }
-    let added = 0;
-    list.forEach(p => { if (S.students.some(s => s.nom === p.nom && s.prenom.toLowerCase() === p.prenom.toLowerCase())) return; S.students.push({id: rnd(5), nom: p.nom, prenom: p.prenom, sexe: p.sexe}); added++; });
+    let added = 0, msg = '';
+    if (mode === 'split') {
+      let first = null;
+      names.forEach(nm => {
+        let c = Object.values(ROOT.classes).find(x => x.name.trim().toLowerCase() === nm.toLowerCase());
+        if (!c) { c = newClass(nm); ROOT.classes[c.id] = c; }
+        first = first || c; added += addStudentsTo(c, list.filter(p => p.classe === nm));
+      });
+      added += addStudentsTo(first, list.filter(p => !p.classe));
+      useClass(first.id); msg = ` dans ${names.length} classes`;
+    } else {
+      if (S.students.length) {
+        mode = await choiceBox(`Importer ${list.length} élève(s)`, `La classe « ${esc(S.name)} » contient déjà ${S.students.length} élève(s).`, [{label: 'Ajouter à la liste', value: 'add', cls: 'primary'}, {label: 'Remplacer la liste', value: 'replace', cls: 'red'}]);
+        if (!mode) return;
+      }
+      if (mode === 'replace') { S.students = []; S.groups.forEach(g => g.members = []); S.assaults = []; Object.values(S.lessons).forEach(L => { L.att = {}; L.sig = {}; }); }
+      added = addStudentsTo(S, list);
+    }
     save(); render();
     const unk = list.filter(p => !p.known).length;
-    toast(`✓ ${added} élève(s) importé(s)${unk ? ` · ${unk} sans sexe indiqué : touchez G/F pour corriger` : ''}`, 4000);
+    toast(`✓ ${added} élève(s) importé(s)${msg}${unk ? ` · ${unk} sans sexe indiqué : touchez G / F / N pour corriger` : ''}`, 4500);
   } catch(e) { toast('⚠️ Lecture impossible : ' + e.message, 4000); }
 }
 
@@ -885,7 +931,7 @@ const A = {
   setCurrent: d => { SET().current = +d.n; save(); render(); },
   addClass: () => { const nm = $('#newClass').value.trim(); if (!nm) return toast('Saisissez le nom de la classe'); const c = newClass(nm); ROOT.classes[c.id] = c; useClass(c.id); save(); render(); },
   delClass: async () => { if (!(await confirmBox(`Supprimer « ${S.name} » ?`, 'Élèves, groupes et résultats de cette classe seront effacés.', 'Supprimer', true))) return; delete ROOT.classes[S.id]; useClass(Object.keys(ROOT.classes)[0]); save(); render(); },
-  toggleSex: d => { const s = stu(d.sid); s.sexe = s.sexe === 'F' ? 'G' : 'F'; save(); render(); },
+  toggleSex: d => { const s = stu(d.sid); s.sexe = {G: 'F', F: 'N', N: 'G'}[s.sexe] || 'G'; save(); render(); },
   delStudent: async d => { if (!(await confirmBox(`Retirer ${nameOf(d.sid)} ?`, 'L\'élève sera retiré de la classe et de son groupe.', 'Retirer', true))) return; S.students = S.students.filter(s => s.id !== d.sid); S.groups.forEach(g => g.members = g.members.filter(m => m !== d.sid)); save(); render(); },
   clearStudents: async () => { if (!(await confirmBox('Vider la liste ?', 'Tous les élèves, les groupes et les résultats de la classe seront effacés.', 'Vider', true))) return; S.students = []; S.groups.forEach(g => g.members = []); S.assaults = []; S.lessons = {}; save(); render(); },
   setGroups: d => { setGroupCount(+d.n); render(); },
@@ -963,12 +1009,12 @@ function openFight() {
   if (l.cid !== S.id && ROOT.classes[l.cid]) useClass(l.cid);
   BFQR.stop(); $('#fight').hidden = false; document.body.classList.add('fighting');
   l.bonus = l.bonus || {R: null, B: null}; l.bonusPick = l.bonusPick || {R: 0, B: 0};
-  $('#targetR').innerHTML = BFDraw.fighter({sexe: l.B.sexe, color: COL.B.c, dark: COL.B.d}) + HEAT_LEGEND;
-  $('#targetB').innerHTML = BFDraw.fighter({sexe: l.R.sexe, color: COL.R.c, dark: COL.R.d, mirror: true}) + HEAT_LEGEND;
+  $('#targetR').innerHTML = BFDraw.fighter({sexe: l.B.sexe, corner: 'B'}) + HEAT_LEGEND;
+  $('#targetB').innerHTML = BFDraw.fighter({sexe: l.R.sexe, corner: 'R'}) + HEAT_LEGEND;
   for (const s of ['R', 'B']) {
     const m = s === 'B';
-    $('#wp' + s).innerHTML = BFDraw.glove(COL[s].c, COL[s].d, m) + `<span class="wl">Poing<small>droit : direct<br>courbe : crochet</small></span>`;
-    $('#wf' + s).innerHTML = BFDraw.shoe(COL[s].c, m) + `<span class="wl">Pied<small>droit : chassé<br>courbe : fouetté</small></span>`;
+    $('#wp' + s).innerHTML = BFDraw.glove(s, m) + `<span class="wl">Poing<small>droit : direct<br>courbe : crochet</small></span>`;
+    $('#wf' + s).innerHTML = BFDraw.shoe(s, m) + `<span class="wl">Pied<small>droit : chassé<br>courbe : fouetté</small></span>`;
     defaultBanner(s);
   }
   coachKey = ''; renderFight(); renderClock(); resizeCanvas(); startClockLoop();
@@ -976,7 +1022,9 @@ function openFight() {
 function closeFight() { $('#fight').hidden = true; document.body.classList.remove('fighting'); stopClockLoop(); }
 const coachOf = (l, side) => nameOf(l.jp?.[side === 'R' ? 0 : 1]);
 function defaultBanner(side) { const l = LV(), c = coachOf(l, side);
-  banner(side, `${c ? `📋 <b>${esc(c)}</b>, coach ${side === 'R' ? 'rouge' : 'bleu'} : ` : ''}tracez les coups de <b>${esc(l[side].name)}</b> depuis le gant ou la chaussure jusqu'à la cible.`); }
+  const how = SET().saisie === 'classique' ? `tracez les coups de <b>${esc(l[side].name)}</b> depuis le gant ou la chaussure jusqu'à la cible.`
+    : `observez <b>${esc(l[side].name)}</b> sans regarder l'écran : départ en <b>haut = poing</b>, en <b>bas = pied</b> · trajectoire droite ou courbe · <b>1, 2 ou 3 doigts</b> = bas, milieu, haut.`;
+  banner(side, `${c ? `📋 <b>${esc(c)}</b>, coach ${side === 'R' ? 'rouge' : 'bleu'} : ` : ''}${how}`); }
 /* ---- Couleur des zones selon le nombre de touches reçues ---- */
 const HEAT = [null, null, {c: '#2E9E44', n: 'très peu touché'}, {c: '#FFD400', n: 'peu touché'}, {c: '#F59E0B', n: 'un peu touché'}, {c: '#D32F2F', n: 'beaucoup touché'}];
 const heatOf = n => HEAT[Math.min(5, n)] || null;
@@ -1134,7 +1182,7 @@ function hitAt(x, y, side) {
 const hovers = new Map();
 function setHover(pid, el) { const old = hovers.get(pid); if (old === el) return; old && old.classList.remove('hover'); if (el) { el.classList.add('hover'); hovers.set(pid, el); } else hovers.delete(pid); }
 $$('.weapon').forEach(w => w.addEventListener('pointerdown', e => {
-  if (!LV()) return;
+  if (!LV() || blindOn()) return;
   e.preventDefault(); audio();
   const side = w.dataset.side; setPending(side, null);
   const t = {pts: [[e.clientX, e.clientY]], color: cssv('--navy')};
@@ -1166,20 +1214,52 @@ function endGesture(e, cancel) {
 }
 arena.addEventListener('pointerup', e => endGesture(e, false));
 arena.addEventListener('pointercancel', e => endGesture(e, true));
+/* ---- Saisie « sans regarder » (module BoxeSaisie, js/boxe-saisie.js) ----
+   Le geste commence à gauche (rouge) ou à droite (bleu) ; en haut = poing, en bas = pied (limite = entre le gant et la chaussure).
+   Trajectoire droite : direct / chassé · courbe : crochet / fouetté · 1, 2, 3 doigts : bas, milieu, haut · tap à 4 doigts : annuler. */
+const blindOn = () => !!LV() && !$('#fight').hidden && SET().saisie !== 'classique' && !$('#resultDlg').open;
+const blindTrails = new Map();
+BoxeSaisie.createEngine(arena, {
+  sides: {left: 'R', right: 'B'}, curveMetric: 'chord', curveThreshold: () => SET().seuil, enabled: blindOn,
+  splitY: () => { const a = $('#wpR').getBoundingClientRect(), b = $('#wfR').getBoundingClientRect(), r = arena.getBoundingClientRect(); return ((a.bottom + b.top) / 2 - r.top) / r.height; },
+  ignore: 'button, a, input, select, textarea, .coach',
+  onTrail: ev => {
+    if (ev.type === 'start') { audio(); arect = arena.getBoundingClientRect(); const t = {pts: [[ev.cx, ev.cy]], color: cssv('--navy')}; blindTrails.set(ev.id, t); trails.push(t); }
+    else { const t = blindTrails.get(ev.id); if (t) t.pts.push([ev.cx, ev.cy]); }
+    kick();
+  },
+  onGesture: res => {
+    const tr = (res.ids || []).map(id => blindTrails.get(id)).filter(Boolean), best = blindTrails.get(res.bestId);
+    (res.ids || []).forEach(id => blindTrails.delete(id));
+    const fade = () => tr.forEach(t => { t.t0 = performance.now(); });
+    if (res.kind === 'cancel') { tr.forEach(t => { t.t0 = performance.now() - 900; }); kick(); return; }
+    if (res.kind === 'undo') { fade(); kick(); buzz(60); $(`.sbtn[data-act="undo"][data-side="${res.side}"]`).click(); return; }
+    const coup = res.arme === 'poing' ? (res.trajectoire === 'courbe' ? 'crochet' : 'direct') : (res.trajectoire === 'courbe' ? 'fouette' : 'chasse');
+    const h = BLIND_H[res.fingers - 1], [z, zs] = BLIND_ZONE[res.arme][h];
+    if (best) { best.color = res.trajectoire === 'courbe' ? cssv('--curve') : cssv('--straight'); best.label = COUPS[coup].l; }
+    fade();
+    const part = $(`#target${res.side} .part[data-zone="${z}"][data-side="${zs}"]`);
+    if (part) { const r = part.getBoundingClientRect(); lastXY = [r.left + r.width / 2, r.top + r.height / 2]; }
+    beep(res.fingers, res.arme === 'poing' ? 300 : 620, res.trajectoire === 'courbe' ? .11 : .06);
+    record(res.side, res.arme, coup, z, zs, {h, inc: res.flags.length > 0});
+  }
+});
 const pending = {R: null, B: null};
 function setPending(side, p) {
   pending[side] = p; $('#target' + side).classList.toggle('await', !!p);
   if (p) banner(side, `<b>${COUPS[p.coup].l}</b> du ${p.weapon} : touchez la cible <button class="linkbtn" data-cancel="${side}">annuler</button>`, 'await');
 }
 $$('.target').forEach(t => t.addEventListener('click', e => {
+  if (blindOn()) return;
   const p = e.target.closest('.part'); if (!p) return; const side = t.dataset.side; lastXY = [e.clientX, e.clientY];
   if (pending[side]) record(side, pending[side].weapon, pending[side].coup, p.dataset.zone, p.dataset.side);
   else toast('Commencez le geste sur le gant ou la chaussure');
 }));
 $$('.half').forEach(h => h.addEventListener('click', e => { const c = e.target.closest('[data-cancel]'); if (c) { setPending(c.dataset.cancel, null); defaultBanner(c.dataset.cancel); } }));
-function record(side, weapon, coup, zone, zside) {
+function record(side, weapon, coup, zone, zside, extra) {
   const l = LV();
   const e = {id: uid(), ts: Date.now(), t: side, w: weapon, c: coup, z: zone || null, s: zside || null, cat: zone ? CAT[zone] : 'manque', trop: false, rep: l.clock.rep, ench: null};
+  if (extra?.h) e.h = extra.h; if (extra?.inc) e.inc = true;
   const bn = l.bonus?.[side]; if (bn && bn.c === coup && l.clock.rep >= bn.from) e.bx = +SET().bonusPts || 0;
   let enchMsg = '';
   const en = l.ench[side];
@@ -1190,7 +1270,7 @@ function record(side, weapon, coup, zone, zside) {
     else enchMsg = ' · enchaînement 1/2';
   }
   l.events.push(e); setPending(side, null); save(); renderFight();
-  const p = ptsOf(e), where = zone ? ZL[zone] : 'dans le vide';
+  const p = ptsOf(e), where = zone ? (e.h ? cap1(BLIND_LAB[weapon][e.h]) : ZL[zone]) + (e.inc ? ' (geste incertain)' : '') : 'dans le vide';
   const note = zone && CAT[zone] === 'garde' ? ' (sur la garde)' : (zone && p === 0 ? ' (cible non valable)' : '');
   banner(side, `<b>${COUPS[coup].l}</b> du ${weapon} → ${where}${note}${e.bx && p > 0 ? ` · <b>★ arme bonus +${e.bx}</b>` : ''}${enchMsg}<span class="pts">${p > 0 ? '+' + p : p}</span>`, p > 0 ? 'ok' : 'zero');
   buzz(p > 0 ? 25 : 10);
@@ -1201,7 +1281,15 @@ function record(side, weapon, coup, zone, zside) {
 $$('.side-ctrl').forEach(c => c.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   const side = b.dataset.side, l = LV();
-  if (b.dataset.miss) { if (pending[side]) record(side, pending[side].weapon, pending[side].coup, null, null); else toast('Tracez le geste depuis l\'arme jusqu\'à « Dans le vide »'); return; }
+  if (b.dataset.miss) {
+    if (pending[side]) record(side, pending[side].weapon, pending[side].coup, null, null);
+    else if (blindOn()) {
+      const ev = [...l.events].reverse().find(x => x.t === side);
+      if (!ev) return toast('Aucune touche à corriger');
+      if (!ev.z) return toast('Cette touche est déjà « dans le vide »');
+      ev.z = null; ev.s = null; ev.cat = 'manque'; ev.trop = false; save(); renderFight();
+      banner(side, `Corrigé : ${COUPS[ev.c].l} → dans le vide`, 'zero'); buzz(20);
+    } else toast('Tracez le geste depuis l\'arme jusqu\'à « Dans le vide »'); return; }
   const act = b.dataset.act;
   if (act === 'ench') {
     const en = l.ench[side];
@@ -1243,7 +1331,7 @@ function openResult() {
       <span>Directs · crochets</span><b>${st.coups.direct.v} · ${st.coups.crochet.v}</b><span>Chassés · fouettés</span><b>${st.coups.chasse.v} · ${st.coups.fouette.v}</b>
       <span>Visage · tronc · bas</span><b>${st.cats.tete} · ${st.cats.tronc} · ${st.cats.bas}</b><span>Sur la garde · dans le vide</span><b>${st.cats.garde} · ${st.cats.manque}</b>
       <span>Enchaînements réussis</span><b>${st.ok} / ${st.tries}</b><span>Touches arme bonus</span><b>${st.bonus}</b><span>Frappes trop fortes</span><b>${st.trop}</b></div>
-      <div class="res-heat" id="rh${side}">${BFDraw.fighter({sexe: l[OTHER[side]].sexe, color: COL[OTHER[side]].c, dark: COL[OTHER[side]].d, mirror: side === 'B'})}<span class="note">Zones touchées sur ${esc(l[OTHER[side]].name)}</span></div>${obsBlock(side)}</div>`; };
+      <div class="res-heat" id="rh${side}">${BFDraw.fighter({sexe: l[OTHER[side]].sexe, corner: OTHER[side]})}<span class="note">Zones touchées sur ${esc(l[OTHER[side]].name)}</span></div>${obsBlock(side)}</div>`; };
   $('#resultBody').innerHTML = `<div class="result">
     <div class="res-head ${r.winner}"><small>Résultat de l'observation</small><h2>${r.winner === 'N' ? 'Match nul' : 'Victoire de ' + esc(l[r.winner].name)}</h2>
       <div class="res-score"><span>${r.sR}</span><span style="font-size:30px;opacity:.7">–</span><span>${r.sB}</span></div></div>

@@ -134,6 +134,7 @@ td.n,th.n{text-align:right} td.c,th.c{text-align:center}
 .stile .nm b{text-transform:uppercase}
 .sx{flex:none;width:30px;height:30px;border-radius:50%;border:none;font-weight:800;font-size:13px;color:#fff;background:var(--blue);display:inline-grid;place-items:center}
 .sx.F{background:#D63384}
+.sx.N{background:#7B5BD6}
 .del{flex:none;width:32px;height:32px;border-radius:50%;border:2px solid var(--line);background:#fff;color:var(--muted);font-weight:800}
 .add-form input{width:200px}
 
