@@ -47,7 +47,7 @@
   <div class="fight-sub">
     <button class="btn small" id="fMenu">Menu</button>
     <span id="fJudges" class="judges-line"></span>
-    <button class="btn small" id="fEnd">Terminer l'assaut</button>
+    <button class="btn small" id="fEnd" title="Appui long : déclarer un abandon">Terminer l'assaut</button>
   </div>
   <main class="arena" id="arena">
     <section class="half red" data-side="R">
@@ -59,10 +59,9 @@
       <div class="target" data-side="R" id="targetR"></div>
       <div class="coach" id="coachR" hidden></div>
       <div class="side-ctrl">
-        <button class="sbtn ench" data-side="R" data-act="ench">Enchaînement</button>
-        <button class="sbtn warn" data-side="R" data-act="trop">Trop fort</button>
-        <button class="sbtn miss" data-side="R" data-miss="R">Dans le vide</button>
-        <button class="sbtn" data-side="R" data-act="undo">Annuler</button>
+        <button class="sbtn ench" data-side="R" data-act="ench" aria-label="Enchaînement" title="Enchaînement">🔗</button>
+        <button class="sbtn warn" data-side="R" data-act="trop" aria-label="Frappe trop forte" title="Frappe trop forte">💥</button>
+        <button class="sbtn" data-side="R" data-act="undo" aria-label="Annuler la dernière touche" title="Annuler">↩️</button>
       </div>
     </section>
     <section class="half blue" data-side="B">
@@ -74,10 +73,9 @@
         <div class="weapon" data-side="B" data-weapon="pied" id="wfB"></div>
       </div>
       <div class="side-ctrl">
-        <button class="sbtn" data-side="B" data-act="undo">Annuler</button>
-        <button class="sbtn miss" data-side="B" data-miss="B">Dans le vide</button>
-        <button class="sbtn warn" data-side="B" data-act="trop">Trop fort</button>
-        <button class="sbtn ench" data-side="B" data-act="ench">Enchaînement</button>
+        <button class="sbtn" data-side="B" data-act="undo" aria-label="Annuler la dernière touche" title="Annuler">↩️</button>
+        <button class="sbtn warn" data-side="B" data-act="trop" aria-label="Frappe trop forte" title="Frappe trop forte">💥</button>
+        <button class="sbtn ench" data-side="B" data-act="ench" aria-label="Enchaînement" title="Enchaînement">🔗</button>
       </div>
     </section>
     <canvas id="trail"></canvas>
