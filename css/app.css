@@ -266,21 +266,27 @@ body.fighting{overflow:hidden}
 .judges-line{font-size:11px;color:var(--muted);font-weight:600;text-align:center;display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:center}
 .judges-line b{color:var(--ink)}
 .arena{flex:1;min-height:0;position:relative;display:grid;grid-template-columns:1fr 1fr;gap:6px;touch-action:none}
-.half{border-radius:12px;box-shadow:var(--shadow);display:grid;gap:5px;padding:5px;min-height:0;min-width:0;background:var(--panel)}
-.half.red{grid-template-columns:1.25fr 1fr;grid-template-areas:"banner banner" "origin target" "ctrl ctrl";grid-template-rows:auto 1fr auto;background:linear-gradient(180deg,var(--red-t),#fff 40%)}
-.half.blue{grid-template-columns:1fr 1.25fr;grid-template-areas:"banner banner" "target origin" "ctrl ctrl";grid-template-rows:auto 1fr auto;background:linear-gradient(180deg,var(--blue-t),#fff 40%)}
+.half{border-radius:12px;box-shadow:var(--shadow);display:grid;gap:5px;padding:5px;min-height:0;min-width:0;background:var(--panel);grid-template-columns:minmax(0,1fr);grid-template-areas:"banner" "target" "origin" "ctrl";grid-template-rows:auto minmax(0,1.5fr) minmax(0,1fr) auto}
+.half[hidden]{display:none}
+.arena.expert{grid-template-columns:minmax(0,1fr)}
+.half.red{background:linear-gradient(180deg,var(--red-t),#fff 40%)}
+.half.blue{background:linear-gradient(180deg,var(--blue-t),#fff 40%)}
 .banner{grid-area:banner;min-height:24px;border-radius:8px;padding:1px 8px;background:rgba(255,255,255,.85);border:1.5px solid var(--line);font-size:13px;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .banner:empty{visibility:hidden}
 .banner .pts{float:right;margin-left:8px;font:800 italic 20px/1.2 var(--display);font-variant-numeric:tabular-nums}
 .banner.ok .pts{color:var(--green)} .banner.zero .pts{color:var(--muted)} .banner.neg .pts{color:var(--warn)}
 .banner.await{background:var(--orange-t);border-color:var(--orange)}
-.origin{grid-area:origin;display:flex;flex-direction:column;gap:5px;min-height:0}
-.weapon{flex:1;min-height:0;position:relative;border-radius:12px;border:2px solid var(--line);background:#fff;touch-action:none}
+.origin{grid-area:origin;display:flex;flex-direction:row;gap:6px;min-height:0}
+.weapon{flex:1;min-height:0;min-width:0;position:relative;border-radius:14px;border:2px solid var(--line);background:#fff;touch-action:none}
 .red .weapon{background:linear-gradient(160deg,var(--red-t),#fff 70%);border-color:#F3C2C0}
 .blue .weapon{background:linear-gradient(200deg,var(--blue-t),#fff 70%);border-color:#BBD3F6}
-.red .weapon.armed{border:2px solid var(--red);background:var(--red-t)}
-.blue .weapon.armed{border:2px solid var(--blue);background:var(--blue-t)}
 .weapon svg{position:absolute;inset:10px;width:calc(100% - 20px);height:calc(100% - 20px);pointer-events:none}
+.weapon.both{display:flex;align-items:center;justify-content:center;gap:6%}
+.weapon.both svg{position:static;width:44%;height:84%}
+.weapon .wl{position:absolute;left:8px;top:4px;font:800 italic 20px var(--display);color:var(--muted);pointer-events:none}
+.xsel{display:flex;align-items:center;gap:4px}
+.xsel .xs{border:2px solid var(--line);background:#fff;border-radius:9px;min-height:26px;padding:0 8px;font-size:15px}
+.xsel .xs.on{border-color:var(--navy);background:var(--soft)}
 .target{grid-area:target;position:relative;min-height:0;min-width:0}
 .target svg{position:absolute;inset:0;width:100%;height:100%}
 .target .part{cursor:pointer}
@@ -457,7 +463,8 @@ main#main.compact{padding:6px 10px 14px;max-width:none;font-size:14px;line-heigh
 .compact .cgrid label{gap:2px;font-size:11px;color:var(--muted)}
 .compact .cgrid input[type=number]{width:100%}
 .compact .bareme td input{width:52px}
-.compact .lrow{display:grid;grid-template-columns:30px 1.6fr 1.1fr 84px 82px 1.2fr;gap:6px;align-items:center;border-top:1px solid var(--line);padding:3px 0}
+.compact .lrow{display:grid;grid-template-columns:30px 1.4fr 1fr 142px auto 78px 72px 1fr;gap:6px;align-items:center;border-top:1px solid var(--line);padding:3px 0}
+.tmode.on{border-color:var(--orange)!important;background:var(--orange-t)}
 .compact .lrow:first-of-type{border-top:0}
 .compact .lrow input[type=text],.compact .lrow select{width:100%}
 .compact .lrow input[type=number]{width:52px}
@@ -502,3 +509,25 @@ main#main.compact{padding:6px 10px 14px;max-width:none;font-size:14px;line-heigh
 .compact table.tight th,.compact table.tight td{padding:2px 4px;font-size:11px;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis}
 .compact .gzone details summary{font-size:12px}
 @media (max-width:900px){.agrid{grid-template-columns:1fr}}
+
+/* ---------- Bilan : personnage au centre, touches par cible et par arme, camembert ---------- */
+.bil{position:relative;margin:4px auto;width:100%;max-width:520px}
+.bil-fig{width:44%;margin:0 auto;position:relative}
+.bil-fig svg{display:block;width:100%;height:auto}
+.bil-lab{position:absolute;width:28%;font-size:12px;line-height:1.25;background:#fff;border:1.5px solid var(--line);border-radius:8px;padding:2px 6px;display:flex;flex-direction:column}
+.bil-lab.l{left:0}.bil-lab.r{right:0}
+.bil-lab b{font:800 12px var(--font);letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.bil-lab span{font-weight:700;white-space:nowrap}
+.bil-lab small{color:var(--muted);font-weight:600}
+.bil-wrap{display:flex;gap:14px;align-items:center;flex-wrap:wrap;justify-content:center}
+.pie{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700}
+.pie svg{width:96px;height:96px;flex:none}
+.pie i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:4px}
+.bil-note{font-size:12px;color:var(--muted);text-align:center;margin:2px 0}
+.stat-sel tr.row-sel td{background:var(--orange-t)}
+.stat-name{cursor:pointer;font-weight:700;text-decoration:underline dotted}
+.lrow2{display:flex;align-items:center;gap:4px}
+.tg{border:2px solid var(--line);background:#fff;border-radius:8px;min-width:30px;height:28px;font-size:14px;padding:0 4px;color:var(--muted)}
+.tg.on{background:var(--orange-t);border-color:var(--orange);color:var(--ink)}
+.tg:disabled{opacity:.35}
+.tourn-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;align-items:start}

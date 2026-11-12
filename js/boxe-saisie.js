@@ -136,6 +136,8 @@
     tapTrajectory: 'droite',
     undoFingers: 4,
     ignore: 'button, a, input, select, textarea, .bx-overlay',
+    classify: null,         // (p:{x,y,w,h}) => {side, key, arme, hand} : classement personnalisé du point de départ (boutons en bas d'écran)
+    doubleTapMs: 0,         // > 0 : un double tap (deux touchers courts successifs) émet kind:'chain' ; un tap simple n'est alors plus une touche
     enabled: null,          // () => bool : false = le moteur ignore les touchers
     onTrail: null, onGesture: null
   };
@@ -145,12 +147,18 @@
     var gestures = {};    // côté -> geste en cours
     var pointerMap = {};  // pointerId -> geste
     var heldDigit = 1;    // simulation des doigts à la souris (touches 1..4)
+    var lastTap = {};     // clé -> instant du dernier tap (double tap)
 
     function rel(e) {
       var r = el.getBoundingClientRect();
       return { x: e.clientX - r.left, y: e.clientY - r.top, w: r.width, h: r.height, cx: e.clientX, cy: e.clientY };
     }
     function sideAt(p) { return p.x < p.w * o.splitX ? o.sides.left : o.sides.right; }
+    function startInfo(p) {
+      if (o.classify) { var c = o.classify(p) || {}; var sd = c.side || sideAt(p); return { side: sd, key: c.key || sd, arme: c.arme || 'poing', hand: c.hand || null }; }
+      var s0 = sideAt(p);
+      return { side: s0, key: s0, arme: p.y < p.h * (typeof o.splitY === 'function' ? o.splitY() : o.splitY) ? 'poing' : 'pied', hand: null };
+    }
     function downPointers(g) {
       var out = [];
       for (var id in g.pointers) if (g.pointers[id].down) out.push(g.pointers[id]);
@@ -163,7 +171,7 @@
       return { x: x / d.length, y: y / d.length };
     }
     function threshold() { return typeof o.curveThreshold === 'function' ? o.curveThreshold() : o.curveThreshold; }
-    function emitTrail(type, id, g, p) { if (o.onTrail) o.onTrail({ type: type, id: id, side: g.side, cx: p.cx, cy: p.cy }); }
+    function emitTrail(type, id, g, p) { if (o.onTrail) o.onTrail({ type: type, id: id, side: g.side, key: g.key, cx: p.cx, cy: p.cy }); }
 
     function onDown(e) {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -171,18 +179,17 @@
       if (o.ignore && e.target.closest && e.target.closest(o.ignore)) return;
       e.preventDefault();
       try { el.setPointerCapture(e.pointerId); } catch (x) { /* ignore */ }
-      var p = rel(e), now = performance.now(), best = null, bestD = Infinity, side;
+      var p = rel(e), now = performance.now(), best = null, bestD = Infinity, info = startInfo(p);
       Object.keys(gestures).forEach(function (k) {
         var g = gestures[k]; if (!g) return;
         var c = centroid(g); if (!c) return;
         var d = dist(p, c);
-        if (d <= o.joinRadius && (now - g.t0 <= o.landingMs || sideAt(p) === g.side) && d < bestD) { best = g; bestD = d; }
+        if (d <= o.joinRadius && (now - g.t0 <= o.landingMs || info.key === g.key) && d < bestD) { best = g; bestD = d; }
       });
       if (!best) {
-        side = sideAt(p);
-        best = gestures[side];
+        best = gestures[info.key];
         if (!best) {
-          best = gestures[side] = { side: side, t0: now, arme: p.y < p.h * (typeof o.splitY === 'function' ? o.splitY() : o.splitY) ? 'poing' : 'pied', pointers: {}, maxFingers: 0 };
+          best = gestures[info.key] = { side: info.side, key: info.key, t0: now, arme: info.arme, hand: info.hand, pointers: {}, maxFingers: 0 };
         }
       }
       best.pointers[e.pointerId] = { path: [p], down: true };
@@ -226,19 +233,25 @@
       return { len: len, chord: chord, ratio: ratio };
     }
     function finalize(g, cancelled) {
-      gestures[g.side] = null;
+      gestures[g.key] = null;
       var best = null, bestM = null, bestId = null, ids = [];
       Object.keys(g.pointers).forEach(function (id) {
         var q = g.pointers[id], m = analyse(q.path);
         ids.push(+id);
         if (!bestM || m.len > bestM.len) { best = q; bestM = m; bestId = +id; }
       });
-      var res = { side: g.side, arme: g.arme, ids: ids, bestId: bestId, kind: 'cancel' };
+      var res = { side: g.side, key: g.key, arme: g.arme, hand: g.hand, ids: ids, bestId: bestId, kind: 'cancel' };
       if (cancelled || !bestM) { if (o.onGesture) o.onGesture(res); return; }
       var last = best.path[best.path.length - 1], first = best.path[0];
       res.cx = last.cx; res.cy = last.cy; res.sx = first.cx; res.sy = first.cy; res.metrics = bestM;
       var tap = bestM.len < o.minTravel;
       if (tap && g.maxFingers >= o.undoFingers) { res.kind = 'undo'; if (o.onGesture) o.onGesture(res); return; }
+      if (tap && o.doubleTapMs > 0) {
+        var nowT = performance.now(), prevT = lastTap[g.key] || 0;
+        if (prevT && nowT - prevT <= o.doubleTapMs) { lastTap[g.key] = 0; res.kind = 'chain'; }
+        else { lastTap[g.key] = nowT; res.kind = 'cancel'; }
+        if (o.onGesture) o.onGesture(res); return;
+      }
       var flags = [], fingers = g.maxFingers;
       if (fingers > 3) { fingers = 3; flags.push('plus de 3 doigts'); }
       if (fingers < 1) fingers = 1;
