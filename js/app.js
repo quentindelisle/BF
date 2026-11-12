@@ -4,7 +4,7 @@
    parcours prof en 4 étapes, échanges par QR codes, paramètres du cycle, piliers.
    ===================================================================== */
 'use strict';
-const APP_VERSION = '3.5.0';
+const APP_VERSION = '3.5.2';
 const ROOT_KEY = 'observbf.v3';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -307,14 +307,14 @@ function enchStats(events, side) {
 const scoreOf = (events, side) => events.filter(e => e.t === side).reduce((s, e) => s + ptsOf(e), 0);
 function sideStats(events, side) {
   const ev = events.filter(e => e.t === side), ev2 = ev.filter(e => !e.gen);
-  const st = {tent: ev.length, valid: ev.filter(isValid).length, trop: ev.filter(e => e.trop).length, bonus: ev.filter(e => e.bx && isValid(e)).length, cats: {}, coups: {}, nh: ev.filter(e => e.nh).length, gen: ev.filter(e => e.gen).length, ...enchStats(events, side)};
+  const st = {tent: ev.length, valid: ev.filter(isValid).length, trop: ev.filter(e => e.trop).length, bonus: ev.filter(e => e.bx && isValid(e)).length, cats: {}, coups: {}, nh: ev.filter(e => e.nh).length, gen: ev.filter(e => e.gen).length, cross: ev.filter(e => e.main && e.k && e.main !== e.k).length, ...enchStats(events, side)};
   for (const k in CATL) st.cats[k] = ev.filter(e => e.cat === k && !e.nh).length;
   for (const c in COUPS) { const ce = ev2.filter(e => e.c === c); st.coups[c] = {t: ce.length, v: ce.filter(isValid).length}; }
   st.poing = ev2.filter(e => e.w === 'poing').length; st.pied = ev2.filter(e => e.w === 'pied').length;
   return st;
 }
 function studentStats(id, n) {
-  const st = {J:0, V:0, N:0, D:0, pm:0, pe:0, tent:0, valid:0, trop:0, poing:0, pied:0, tries:0, ok:0, bonus:0, nh:0, gen:0, jc:0, jp:0, rest:0, cats:{}, coups:{}};
+  const st = {J:0, V:0, N:0, D:0, pm:0, pe:0, tent:0, valid:0, trop:0, poing:0, pied:0, tries:0, ok:0, bonus:0, nh:0, gen:0, cross:0, jc:0, jp:0, rest:0, cats:{}, coups:{}};
   for (const k in CATL) st.cats[k] = 0; for (const c in COUPS) st.coups[c] = {t: 0, v: 0};
   for (const a of S.assaults) {
     if (a.status !== 'done' || (n && a.n !== n)) continue;
@@ -323,7 +323,7 @@ function studentStats(id, n) {
     st.J++; st.pm += side === 'R' ? a.scoreR : a.scoreB; st.pe += side === 'R' ? a.scoreB : a.scoreR;
     if (a.winner === 'N') st.N++; else if (a.winner === side) st.V++; else st.D++;
     const s = sideStats(a.events || [], side);
-    for (const k of ['tent', 'valid', 'trop', 'poing', 'pied', 'tries', 'ok', 'bonus', 'nh', 'gen']) st[k] += s[k];
+    for (const k of ['tent', 'valid', 'trop', 'poing', 'pied', 'tries', 'ok', 'bonus', 'nh', 'gen', 'cross']) st[k] += s[k];
     for (const k in CATL) st.cats[k] += s.cats[k];
     for (const c in COUPS) { st.coups[c].t += s.coups[c].t; st.coups[c].v += s.coups[c].v; }
   }
@@ -717,13 +717,13 @@ function profClassements() {
 }
 function profStats() {
   const n = UI.statN || 0, scope = n ? [n] : Array.from({length: SET().nbLessons}, (_, i) => i + 1);
-  const showEnch = scope.some(k => lessonCfg(k).ench), showBon = scope.some(k => lessonCfg(k).bon);
+  const showEnch = scope.some(k => lessonCfg(k).ench), showBon = scope.some(k => lessonCfg(k).bon), showCross = S.assaults.some(a => (a.events || []).some(e => e.k));
   const rows = sortedStudents().map(s => ({s, st: studentStats(s.id, n || null)}));
   return `<div class="row" style="margin-bottom:6px"><div class="lesson-picker mini"><button class="lp small ${!n ? 'on' : ''}" style="width:auto;padding:0 12px" data-action="statN" data-n="0">Cycle</button>${Array.from({length: SET().nbLessons}, (_, i) => i + 1).map(k => `<button class="lp small ${k === n ? 'on' : ''}" data-action="statN" data-n="${k}">${k}</button>`).join('')}</div>
       <span class="note">Touchez le nom d'un élève pour voir son bilan : cibles touchées par arme et répartition poings / pieds.</span></div>
-    <div class="card"><div class="table-wrap"><table class="tight"><thead><tr><th>Élève</th><th class="n">Assauts</th><th class="n">V-N-D</th><th class="n">Pts</th><th class="n">Coups</th><th class="n">Touches</th><th class="n">Effic.</th><th class="n">Dir.</th><th class="n">Cro.</th><th class="n">Cha.</th><th class="n">Fou.</th><th class="n">Visage</th><th class="n">Trop fort</th>${showEnch ? '<th class="n">Ench.</th>' : ''}<th class="n">Arbitre</th><th class="n">Coach</th><th class="n">Repos</th>${showBon ? '<th class="n">Bonus</th>' : ''}</tr></thead><tbody>
+    <div class="card"><div class="table-wrap"><table class="tight"><thead><tr><th>Élève</th><th class="n">Assauts</th><th class="n">V-N-D</th><th class="n">Pts</th><th class="n">Coups</th><th class="n">Touches</th><th class="n">Effic.</th><th class="n">Dir.</th><th class="n">Cro.</th><th class="n">Cha.</th><th class="n">Fou.</th><th class="n">Visage</th><th class="n">Trop fort</th>${showCross ? '<th class="n" title="Coups croisés : main ou pied d\'un côté, cible de l\'autre">Croisés</th>' : ''}${showEnch ? '<th class="n">Ench.</th>' : ''}<th class="n">Arbitre</th><th class="n">Coach</th><th class="n">Repos</th>${showBon ? '<th class="n">Bonus</th>' : ''}</tr></thead><tbody>
     ${rows.map(({s, st}) => `<tr><td><span class="stat-name" data-action="statSid" data-sid="${s.id}">${esc(dispName(s))}</span></td><td class="n">${st.J}</td><td class="n">${st.V}-${st.N}-${st.D}</td><td class="n"><b>${st.pm}</b></td><td class="n">${st.tent}</td><td class="n">${st.valid}</td><td class="n">${st.tent ? Math.round(100 * st.valid / st.tent) + ' %' : '—'}</td>
-      ${COUP_KEYS.map(c => `<td class="n">${st.coups[c].v}/${st.coups[c].t}</td>`).join('')}<td class="n">${st.cats.tete}</td><td class="n">${st.trop}</td>${showEnch ? `<td class="n">${st.ok}/${st.tries}</td>` : ''}<td class="n">${st.jc}</td><td class="n">${st.jp}</td><td class="n">${st.rest}</td>${showBon ? `<td class="n">${st.bonus}</td>` : ''}</tr>`).join('')}</tbody></table></div></div>`;
+      ${COUP_KEYS.map(c => `<td class="n">${st.coups[c].v}/${st.coups[c].t}</td>`).join('')}<td class="n">${st.cats.tete}</td><td class="n">${st.trop}</td>${showCross ? `<td class="n">${st.cross}</td>` : ''}${showEnch ? `<td class="n">${st.ok}/${st.tries}</td>` : ''}<td class="n">${st.jc}</td><td class="n">${st.jp}</td><td class="n">${st.rest}</td>${showBon ? `<td class="n">${st.bonus}</td>` : ''}</tr>`).join('')}</tbody></table></div></div>`;
 }
 function profObs() {
   const N = SET().nbLessons, byPil = {};
@@ -1216,6 +1216,11 @@ function openFight() {
   for (const s of ['R', 'B']) defaultBanner(s);
   buildOrigins();
   coachKey = ''; renderFight(); renderClock(); resizeCanvas(); startClockLoop();
+  if (l.cfg.jug === 'expert' && !l.xsDone) {      // mode expert : on choisit QUI on observe
+    l.xsDone = true;
+    choiceBox('Qui observez-vous ?', 'En mode expert, une tablette observe un seul tireur. Vous pourrez changer avec les boutons en haut de l\'écran.',
+      [{label: `🔴 ${l.R.name}`, value: 'R', cls: 'red'}, {label: `🔵 ${l.B.name}`, value: 'B', cls: 'blue'}]).then(v => { if (v) l.xs = v; save(); buildOrigins(); renderFight(); });
+  }
 }
 /* Boutons de départ en bas de chaque moitié : gant / chaussure (ou une seule case en niveau débutant ; quatre boutons en expert) */
 function buildOrigins() {
@@ -1224,7 +1229,7 @@ function buildOrigins() {
   for (const s of ['R', 'B']) {
     const m = s === 'B', o = $('#origin' + s), jug = cfg.jug === 'expert' ? 'expert' : jugOf(s);
     if (jug === 'debutant') o.innerHTML = `<div class="weapon both" data-side="${s}" data-arme="gen">${BFDraw.glove(s, m)}${BFDraw.shoe(s, m)}</div>`;
-    else if (jug === 'expert') o.innerHTML = s === l.xs ? mk(s, 'pied', 'g', false) + mk(s, 'poing', 'g', false) + mk(s, 'poing', 'd', true) + mk(s, 'pied', 'd', true) : '';
+    else if (jug === 'expert') o.innerHTML = s === l.xs ? mk(s, 'pied', 'g', false) + mk(s, 'poing', 'g', true) + mk(s, 'poing', 'd', false) + mk(s, 'pied', 'd', true) : '';
     else { const parts = []; if (cfg.pied) parts.push(mk(s, 'pied', null, m)); if (cfg.poing) parts.push(mk(s, 'poing', null, m)); o.innerHTML = (m ? parts.reverse() : parts).join(''); }
   }
 }
@@ -1237,9 +1242,12 @@ const HEAT = [null, null, {c: '#2E9E44', n: 'très peu touché'}, {c: '#FFD400',
 const heatOf = n => HEAT[Math.min(5, n)] || null;
 const HEAT_LEGEND = `<div class="heat-legend"><span><i style="background:#2E9E44"></i>2</span><span><i style="background:#FFD400"></i>3</span><span><i style="background:#F59E0B"></i>4</span><span><i style="background:#D32F2F"></i>5+</span></div>`;
 function heatCounts(events, side) { const m = {}; events.forEach(e => { if (e.t === side && e.z) { const k = e.z + '-' + e.s; m[k] = (m[k] || 0) + 1; } }); return m; }
+const SPLIT = BFDraw.SPLIT;
+/* parties du personnage touchées : une zone coupée en deux se colore en entier pour un coup « central », par moitié pour un coup à gauche / droite */
+const partsOf = (root, z, s) => [...root.querySelectorAll(`.part[data-zone="${z}"]`)].filter(p => p.dataset.side === s || (s === 'c' && SPLIT.has(z)));
 function paintHeat(root, events, side) {
   const m = heatCounts(events, side);
-  root.querySelectorAll('.part').forEach(p => { const h = heatOf(m[p.dataset.zone + '-' + p.dataset.side] || 0);
+  root.querySelectorAll('.part').forEach(p => { const z = p.dataset.zone, sd = p.dataset.side, h = heatOf((m[z + '-' + sd] || 0) + (SPLIT.has(z) && sd !== 'c' ? (m[z + '-c'] || 0) : 0));
     p.classList.toggle('heated', !!h); if (h) p.style.setProperty('--heat', h.c); else p.style.removeProperty('--heat'); });
 }
 /* ---- Temps de coaching : arme bonus ---- */
@@ -1280,7 +1288,7 @@ function renderFight() {
   }
   const expert = l.cfg.jug === 'expert';
   $$('#arena .half').forEach(h => h.hidden = expert && h.dataset.side !== l.xs);
-  $('#xsel').hidden = !expert; $$('#xsel .xs').forEach(b => b.classList.toggle('on', b.dataset.xs === l.xs));
+  $('#xsel').hidden = !expert; $$('#xsel .xs').forEach(b => { b.classList.toggle('on', b.dataset.xs === l.xs); b.textContent = (b.dataset.xs === 'R' ? '🔴 ' : '🔵 ') + l[b.dataset.xs].name; });
   paintHeat($('#targetR'), l.events, 'R'); paintHeat($('#targetB'), l.events, 'B');
   const g = groupById(l.gid), rest = l.aid ? restOf({...l, n: l.n, gid: l.gid, red: l.R.id, blue: l.B.id}) : [];
   $('#fJudges').innerHTML = `${g ? gDot(g) + `<b>${esc(g.name)}</b> · ` : ''}⚖️ Arbitre : <b>${esc(nameOf(l.jc) || '—')}</b> · <span class="wR">📋 Coach rouge :</span> <b>${esc(coachOf(l, 'R') || '—')}</b> · <span class="wB">📋 Coach bleu :</span> <b>${esc(coachOf(l, 'B') || '—')}</b>${rest.length ? ` · 💤 ${rest.map(nameOf).map(esc).join(', ')}` : ''}`;
@@ -1431,12 +1439,12 @@ BX = BoxeSaisie.createEngine(arena, {
       if (jug === 'debrouille') { z = 'tronc'; extra.nh = true; }
       else { h = hOf(arme, res.fingers); [z, zs] = BLIND_ZONE[arme][h]; extra.h = h; }
     }
-    if (jug === 'expert') { const r = arena.getBoundingClientRect(); extra.k = res.cx < r.left + r.width / 2 ? 'g' : 'd'; extra.main = res.hand; }
+    if (jug === 'expert') { const r = arena.getBoundingClientRect(); extra.k = res.cx < r.left + r.width / 2 ? 'g' : 'd'; extra.main = res.hand; zs = extra.k; }
     extra.inc = res.flags.length > 0 && jug !== 'debutant';
     if (best) { best.color = res.trajectoire === 'courbe' ? cssv('--curve') : cssv('--straight'); best.label = jug === 'debutant' ? '' : COUPS[coup].l; }
     fade();
-    const part = $(`#target${res.side} .part[data-zone="${z}"][data-side="${zs}"]`);
-    if (part) { const r = part.getBoundingClientRect(); lastXY = [jug === 'expert' ? res.cx : r.left + r.width / 2, r.top + r.height / 2]; }
+    const ps = partsOf($('#target' + res.side), z, zs).map(x => x.getBoundingClientRect());
+    if (ps.length) { const L0 = Math.min(...ps.map(r => r.left)), R0 = Math.max(...ps.map(r => r.right)), T0 = Math.min(...ps.map(r => r.top)), B0 = Math.max(...ps.map(r => r.bottom)); lastXY = [jug === 'expert' ? (L0 + R0) / 2 : (L0 + R0) / 2, (T0 + B0) / 2]; if (jug === 'expert') lastXY[0] = res.cx < arena.getBoundingClientRect().left + arena.getBoundingClientRect().width / 2 ? (L0 + R0) / 2 : (L0 + R0) / 2; }
     beep(jug === 'debutant' ? 1 : (res.fingers || 1), arme === 'poing' ? 300 : 620, res.trajectoire === 'courbe' ? .11 : .06);
     record(res.side, arme, coup, z, zs, extra);
   }
@@ -1473,7 +1481,7 @@ function record(side, weapon, coup, zone, zside, extra = {}) {
   buzz(p > 0 ? 25 : 10);
   if (lastXY) { impacts.push({x: lastXY[0], y: lastXY[1], t0: performance.now(), color: p > 0 ? '#F29A12' : '#9AA3B5', txt: p > 0 ? (e.bx ? `★ +${p}` : `+${p}`) : ''}); kick(); }
   lastXY = null;
-  const g = $(`#target${side} .part[data-zone="${zone}"][data-side="${zside}"]`); if (g) { g.classList.add('hit'); setTimeout(() => g.classList.remove('hit'), 650); }
+  partsOf($('#target' + side), zone, zside).forEach(g => { g.classList.add('hit'); setTimeout(() => g.classList.remove('hit'), 650); });
 }
 $$('.side-ctrl').forEach(c => c.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
@@ -1540,9 +1548,14 @@ function bilanHTML(events, side, o) {
   const m = bilCounts(events, side), expert = events.some(e => e.k);
   const labs = BIL_ROWS.map(([k, l, y, pos]) => { const c = m[k];
     return `<div class="bil-lab ${pos}" style="top:${y}%"><b>${l}</b><span>🥊 ${c.poing} · 🦶 ${c.pied}</span>${expert && (c.g || c.d) ? `<small>G ${c.g} · D ${c.d}</small>` : ''}</div>`; }).join('');
+  const combos = {};
+  events.forEach(e => { if (e.t !== side || !e.k || !e.main || !BIL_ZONE[e.z]) return; const key = `${e.w}|${e.main}|${BIL_ZONE[e.z]}|${e.k}`; combos[key] = (combos[key] || 0) + 1; });
+  const zl = Object.fromEntries(BIL_ROWS.map(r => [r[0], r[1]]));
+  const detail = Object.entries(combos).sort((a, b) => b[1] - a[1]).map(([key, n]) => { const [w, main, z, k] = key.split('|');
+    return `<tr${main !== k ? ' style="color:var(--orange);font-weight:800"' : ''}><td>${w === 'pied' ? 'Pied' : 'Poing'} ${main.toUpperCase()}</td><td>→ ${zl[z]} ${k.toUpperCase()}${main !== k ? ' ✖ croisé' : ''}</td><td class="n">${n}</td></tr>`; }).join('');
   const note = [m.nh ? `${m.nh} touche${m.nh > 1 ? 's' : ''} sans hauteur précisée` : '', m.gen ? `${m.gen} touche${m.gen > 1 ? 's' : ''} sans distinction poing / pied` : ''].filter(Boolean).join(' · ');
   return `<div class="bil-wrap"><div class="bil"><div class="bil-fig" id="${o.id}">${BFDraw.fighter({sexe: o.sexe, corner: o.corner})}</div>${labs}</div>
-    <div>${pieHTML([{l: 'Poings', v: m.poing, c: '#F29A12'}, {l: 'Pieds', v: m.pied, c: '#13285A'}, {l: 'Touches non distinguées', v: m.gen, c: '#9AA3B5'}])}${note ? `<div class="bil-note">${note}</div>` : ''}</div></div>`;
+    <div>${pieHTML([{l: 'Poings', v: m.poing, c: '#F29A12'}, {l: 'Pieds', v: m.pied, c: '#13285A'}, {l: 'Touches non distinguées', v: m.gen, c: '#9AA3B5'}])}${note ? `<div class="bil-note">${note}</div>` : ''}${detail ? `<table class="tight bil-det"><tbody>${detail}</tbody></table><div class="bil-note">G / D : côté de l'écran où le geste finit</div>` : ''}</div></div>`;
 }
 function studentEvents(id, n) {
   const out = [];
