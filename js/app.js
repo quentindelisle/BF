@@ -58,7 +58,7 @@ const DEFAULT_PILIERS = [
   {id:'arb', n:'Arbitrer et juger', cr:['Annonces claires : en garde, allez, stop', 'Sanctionne les frappes trop fortes', 'Compte les touches sans se tromper']}];
 const DEF_BAREME = {poing:{tete:1, tronc:1, bas:1, garde:0, nh:1}, pied:{tete:4, tronc:2, bas:1, garde:0, nh:2}};
 const DEF_SET = {nbLessons:6, current:1, totalMin:40, reprises:2, recupSec:30, transitionSec:60, mode:'auto', manualSec:60, bonusOn:true, bonusPts:1, bonusArmes:['direct','crochet','chasse','fouette'],
-  bareme:clone(DEF_BAREME), penalite:1, bonusEnch:2, seuil:0.18, ptsV:3, ptsN:2, ptsD:1, autoNext:10, bv:2};
+  bareme:clone(DEF_BAREME), penalite:1, bonusEnch:0, seuil:0.18, ptsV:3, ptsN:2, ptsD:1, autoNext:10, bv:2};
 
 /* ---------------- État ---------------- */
 let ROOT, S;
@@ -67,7 +67,8 @@ function normClass(c) {
   const old = c.settings || {}, mig = (old.bv || 0) < 2 && Object.keys(old).length > 0;
   c.settings = Object.assign(clone(DEF_SET), old);
   c.settings.bareme = {poing: Object.assign(clone(DEF_BAREME.poing), old.bareme?.poing), pied: Object.assign(clone(DEF_BAREME.pied), old.bareme?.pied)};
-  if (mig) { c.settings.bareme = clone(DEF_BAREME); c.settings.bonusEnch = 2; if (c.settings.manualSec === 90) c.settings.manualSec = 60; }
+  if (mig) { c.settings.bareme = clone(DEF_BAREME); c.settings.bonusEnch = 0; if (c.settings.manualSec === 90) c.settings.manualSec = 60; }
+  c.settings.bonusEnch = 0;   // plus de bonus : l'enchaînement est seulement noté dans les stats
   c.settings.bv = 2;
   ['students', 'groups', 'assaults'].forEach(k => c[k] = c[k] || []);
   c.lessons = c.lessons || {};
@@ -292,7 +293,7 @@ function enchStats(events, side) {
   let tries = 0, ok = 0; for (const arr of m.values()) { if (arr.length < 2) continue; tries++; if (arr.length === 2 && arr.every(isValid)) ok++; }
   return {tries, ok};
 }
-const scoreOf = (events, side) => events.filter(e => e.t === side).reduce((s, e) => s + ptsOf(e), 0) + enchStats(events, side).ok * (+SET().bonusEnch || 0);
+const scoreOf = (events, side) => events.filter(e => e.t === side).reduce((s, e) => s + ptsOf(e), 0);
 function sideStats(events, side) {
   const ev = events.filter(e => e.t === side), ev2 = ev.filter(e => !e.gen);
   const st = {tent: ev.length, valid: ev.filter(isValid).length, trop: ev.filter(e => e.trop).length, bonus: ev.filter(e => e.bx && isValid(e)).length, cats: {}, coups: {}, nh: ev.filter(e => e.nh).length, gen: ev.filter(e => e.gen).length, ...enchStats(events, side)};
@@ -536,7 +537,7 @@ function profCycle() {
       <div class="row" style="margin-top:5px">${COUP_KEYS.map(c => `<label class="chk"><input type="checkbox" data-field="bonusArme" data-c="${c}" ${s.bonusArmes.includes(c) ? 'checked' : ''}> ${COUPS[c].l}</label>`).join('')}</div></div></div>
     <div class="pcol">
     <div class="card"><h2>Valeurs des touches <span class="note">(la garde et le vide ne comptent pas)</span></h2><div class="cgrid">
-        ${f('Poing : direct, crochet', bv('poing', 'all', s.bareme.poing.tete))}${f('Enchaînement validé (+)', num('bonusEnch', 0, 10))}${f('Trop fort (−)', num('penalite', 0, 5))}
+        ${f('Poing : direct, crochet', bv('poing', 'all', s.bareme.poing.tete))}${f('Trop fort (−)', num('penalite', 0, 5))}
         ${f('Pied · ligne basse (jambes)', bv('pied', 'bas', s.bareme.pied.bas))}${f('Pied · ligne médiane (flancs)', bv('pied', 'tronc', s.bareme.pied.tronc))}${f('Pied · ligne haute (visage)', bv('pied', 'tete', s.bareme.pied.tete))}</div>
       <div class="cgrid" style="margin-top:6px">${f('Points V / N / D', `<span class="row" style="gap:3px;flex-wrap:nowrap">${num('ptsV', 0, 10)}${num('ptsN', 0, 10)}${num('ptsD', 0, 10)}</span>`)}
         <label style="grid-column:span 2">Geste droit / courbe : ${Math.round(s.seuil * 100)} %<input type="range" min="0.08" max="0.40" step="0.01" data-field="set" data-k="seuil" value="${s.seuil}"></label></div></div></div>
@@ -618,7 +619,7 @@ function profNotice() {
         <tr><td>Pied · ligne basse (jambes)</td><td><b>${B.pied.bas} pt</b></td></tr>
         <tr><td>Pied · ligne médiane (flancs)</td><td><b>${B.pied.tronc} pt</b></td></tr>
         <tr><td>Pied · ligne haute (visage)</td><td><b>${B.pied.tete} pt</b></td></tr>
-        <tr><td>Enchaînement validé (deux touches qui touchent)</td><td><b>+${SET().bonusEnch} pt</b></td></tr>
+        <tr><td>Enchaînement (deux touches qui touchent)</td><td>pas de bonus : chaque touche compte (deux poings = <b>${B.poing.tete * 2} pt</b>) et l'enchaînement est noté dans les stats</td></tr>
         <tr><td>Frappe trop forte</td><td><b>−${SET().penalite} pt</b> (dernière frappe seulement)</td></tr></tbody></table>
       <p class="note">La garde et les coups dans le vide ne se saisissent pas et ne comptent pas. Les valeurs se règlent dans <b>Paramètres du cycle</b>.</p></div>
     <div class="card"><h2>🧰 Boutons pendant l'assaut</h2>
@@ -1412,7 +1413,7 @@ function record(side, weapon, coup, zone, zside, extra = {}) {
     e.ench = en.id; en.n++;
     if (en.n === 1) en.exp = e.ts + CHAIN_MS;
     if (en.n >= 2) { l.ench[side] = null; const pair = [...l.events.filter(x => x.ench === en.id), e];
-      enchMsg = pair.every(isValid) ? ` · <b>enchaînement +${SET().bonusEnch}</b>` : ' · enchaînement non validé'; }
+      enchMsg = pair.every(isValid) ? ' · <b>enchaînement validé</b>' : ' · enchaînement non validé'; }
     else enchMsg = ' · 🔗 1/2';
   }
   l.events.push(e); save(); renderFight();

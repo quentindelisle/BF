@@ -37,7 +37,7 @@ Une tablette sans leçon peut lancer un assaut libre (noms saisis). Chaque touch
 
 - **Saisie** : départ sur les boutons gant / chaussure en bas de chaque moitié ; poing 1 doigt = ventre, 2 doigts = visage ; pied 1 / 2 / 3 doigts = jambes / flancs / visage ; double tap = enchaînement (touche précédente + suivante en moins de 2,5 s) ; 4 doigts = annuler ; 💥 = dernière frappe seulement.
 - **Niveaux de jugement par leçon** (Paramètres du cycle) : Débutant (une case), Débrouillé (armes), Jugement complet (armes + hauteurs), Expert (un observateur, pied G · poing G · poing D · pied D, côté touché, coups croisés). Armes autorisées, enchaînements et arme bonus se choisissent aussi leçon par leçon.
-- **Valeurs des touches** : poing 1 pt · pied bas 1 / médian 2 / haut 4 · enchaînement validé +2 · la garde et le vide ne comptent pas.
+- **Valeurs des touches** : poing 1 pt · pied bas 1 / médian 2 / haut 4 · enchaînement sans bonus (noté dans les stats) · la garde et le vide ne comptent pas.
 - **Leçon du jour** : Constituer les groupes + 🏁 Tournoi (temps d'assaut fixe, ou temps de tournoi fixe réparti par groupe). Tournoi inachevé : classement pondéré (note = points/reprise × reprises prévues × (0,5 + 0,5 × reprises disputées ÷ prévues)).
 - **Bilans** : personnage au centre, touches par cible et par arme, camembert poings / pieds ; l'observation n'est plus corrigeable une fois le bilan affiché.
 - **Noms** : « Prénom N. » partout (nom complet seulement en cas d'homonyme) ; l'export Excel garde les noms complets.

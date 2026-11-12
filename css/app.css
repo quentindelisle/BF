@@ -531,3 +531,8 @@ main#main.compact{padding:6px 10px 14px;max-width:none;font-size:14px;line-heigh
 .tg.on{background:var(--orange-t);border-color:var(--orange);color:var(--ink)}
 .tg:disabled{opacity:.35}
 .tourn-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;align-items:start}
+
+/* signature */
+#sig{position:fixed;right:max(10px,env(safe-area-inset-right,0px));bottom:max(4px,env(safe-area-inset-bottom,0px));font:600 11px var(--font);color:var(--muted);opacity:.8;pointer-events:none;z-index:3;letter-spacing:.02em}
+body.fighting #sig{display:none}
+#sig{background:var(--orange-t);border:2px solid var(--orange);border-radius:999px;padding:3px 12px;color:var(--navy);font-weight:700;opacity:1;box-shadow:0 2px 6px rgba(19,40,90,.15)}
