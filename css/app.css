@@ -463,7 +463,7 @@ main#main.compact{padding:6px 10px 14px;max-width:none;font-size:14px;line-heigh
 .compact .cgrid label{gap:2px;font-size:11px;color:var(--muted)}
 .compact .cgrid input[type=number]{width:100%}
 .compact .bareme td input{width:52px}
-.compact .lrow{display:grid;grid-template-columns:30px 1.4fr 1fr 142px auto 78px 72px 1fr;gap:6px;align-items:center;border-top:1px solid var(--line);padding:3px 0}
+.compact .lrow{display:grid;grid-template-columns:30px 1.3fr 1fr 1fr auto 78px 72px 1fr;gap:6px;align-items:center;border-top:1px solid var(--line);padding:3px 0}
 .tmode.on{border-color:var(--orange)!important;background:var(--orange-t)}
 .compact .lrow:first-of-type{border-top:0}
 .compact .lrow input[type=text],.compact .lrow select{width:100%}
@@ -538,3 +538,5 @@ body.fighting #sig{display:none}
 #sig{background:var(--orange-t);border:2px solid var(--orange);border-radius:999px;padding:3px 12px;color:var(--navy);font-weight:700;opacity:1;box-shadow:0 2px 6px rgba(19,40,90,.15)}
 #sig{position:fixed;left:auto;top:auto;right:10px;bottom:6px;width:max-content;max-width:calc(100vw - 20px);white-space:nowrap}
 @supports (padding:max(1px,env(safe-area-inset-right,0px))){#sig{right:max(10px,env(safe-area-inset-right,0px));bottom:max(6px,env(safe-area-inset-bottom,0px))}}
+
+.compact .lhead{font:700 11px/1.15 var(--font);color:var(--muted);text-transform:uppercase;letter-spacing:.03em;border-top:0;border-bottom:2px solid var(--line);padding-bottom:2px}

@@ -41,3 +41,8 @@ Une tablette sans leçon peut lancer un assaut libre (noms saisis). Chaque touch
 - **Leçon du jour** : Constituer les groupes + 🏁 Tournoi (temps d'assaut fixe, ou temps de tournoi fixe réparti par groupe). Tournoi inachevé : classement pondéré (note = points/reprise × reprises prévues × (0,5 + 0,5 × reprises disputées ÷ prévues)).
 - **Bilans** : personnage au centre, touches par cible et par arme, camembert poings / pieds ; l'observation n'est plus corrigeable une fois le bilan affiché.
 - **Noms** : « Prénom N. » partout (nom complet seulement en cas d'homonyme) ; l'export Excel garde les noms complets.
+
+## Version 3.5 — capacité de juger (fil rouge), deux piliers
+- **Paramètres du cycle → Capacité de juger** : un niveau par leçon, ou niveaux différenciés par élève (débutant → débrouillé → complet). Le niveau se règle dans **Leçon du jour → 🎚 Niveaux de jugement** ; en fin de leçon, on change le niveau des élèves (suggestions d'après l'observation du pilier). Le mode expert se déclenche à la main (une tablette par élève observé).
+- Chaque coach saisit au niveau de son propre profil : l'écran de chaque moitié s'adapte (case unique, gant / chaussure, hauteurs).
+- Jusqu'à **deux piliers** par leçon ; tableau des leçons avec en-têtes explicatifs.

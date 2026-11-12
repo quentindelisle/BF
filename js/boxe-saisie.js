@@ -246,7 +246,8 @@
       res.cx = last.cx; res.cy = last.cy; res.sx = first.cx; res.sy = first.cy; res.metrics = bestM;
       var tap = bestM.len < o.minTravel;
       if (tap && g.maxFingers >= o.undoFingers) { res.kind = 'undo'; if (o.onGesture) o.onGesture(res); return; }
-      if (tap && o.doubleTapMs > 0) {
+      var dtm = typeof o.doubleTapMs === 'function' ? o.doubleTapMs(g) : o.doubleTapMs;
+      if (tap && dtm > 0) {
         var nowT = performance.now(), prevT = lastTap[g.key] || 0;
         if (prevT && nowT - prevT <= o.doubleTapMs) { lastTap[g.key] = 0; res.kind = 'chain'; }
         else { lastTap[g.key] = nowT; res.kind = 'cancel'; }
