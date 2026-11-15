@@ -52,3 +52,7 @@ Une tablette sans leçon peut lancer un assaut libre (noms saisis). Chaque touch
 - **Saisie vocale** (Paramètres du cycle, désactivée par défaut) : module `vocal-eps/` (Vosk, 100 % hors ligne). Un bouton micro « Parler » (appui maintenu) apparaît côté observé en mode Inclusion ; la voix appelle la même fonction que le geste (`saisirTouche`). Phrases : N1 « touche » · N2 « fouetté », « chassé », « crochet », « direct » (l'arme est déduite du coup) · N3 coup + hauteur (« fouetté haut », « chassé médiane », « crochet bas »). La saisie tactile reste toujours disponible, avec un grand bouton « Annuler la dernière touche ».
 - Le premier chargement du modèle télécharge 52 Mo : à faire sur le Wi-Fi, avant la séance, sur chaque tablette. Le service worker ne met pas le modèle en cache (Vosk le garde sur l'appareil).
 - Crédits : Vosk (Apache 2.0) ; modèle français de Paul Guyot (CC BY-NC-SA 4.0, usage non commercial), voir `vocal-eps/modeles/LICENCE-modele-fr.txt`.
+
+## Version 3.7 — lexique à l'écran et écoute continue (mode Inclusion)
+- Le **lexique du niveau** (N1 / N2 / N3) s'affiche à côté du personnage ; ce que la tablette reconnaît se **surligne en direct** (jaune pendant que l'on parle, vert quand la touche est enregistrée, rouge si incomplet).
+- **Écoute continue** (bouton sous « Parler ») : le micro reste ouvert pendant tout l'assaut et chaque touche annoncée s'ajoute l'une après l'autre. Il se coupe à la fin de l'assaut.

@@ -4,7 +4,7 @@
    parcours prof en 4 étapes, échanges par QR codes, paramètres du cycle, piliers.
    ===================================================================== */
 'use strict';
-const APP_VERSION = '3.6.5';
+const APP_VERSION = '3.7.0';
 const ROOT_KEY = 'observbf.v3';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -1598,6 +1598,7 @@ function studentEvents(id, n) {
 }
 function openResult() {
   const l = LV(); if (!l) return;
+  if (window.Voix) Voix.arreterEcoute();      // fin de l'assaut : le micro se coupe
   const r = result(), cfg = l.cfg || lessonCfg(l.n);
   const col = side => { const jug = jugOf(side), st = sideStats(l.events, side), o = OTHER[side], cross = l.events.filter(e => e.t === side && e.main && e.main !== e.k).length;
     const rows = [['Touches valables', `${st.valid} / ${st.tent}`]];
