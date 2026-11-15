@@ -26,7 +26,20 @@
 
   const Voix = {
     statut: 'off', erreur: '', GRAMMAIRES,
-    notifier() { const el = document.getElementById('voixStatut'); if (el) el.innerHTML = Voix.statutHTML(); },
+    notifier() { const el = document.getElementById('voixStatut'); if (el) el.innerHTML = Voix.statutHTML(); Voix.accueil(); },
+    /* Message d'accueil du mode Inclusion : dit clairement l'état (voix désactivée, modèle en chargement, prête) */
+    accueil() {
+      const l = LV(); if (!l || !l.inc) return;
+      const b = document.getElementById('banner' + l.xs); if (!b || (b.className.indexOf('voix') < 0 && b.textContent && !/^\s*(📋|Niveau)/.test(b.textContent))) return;
+      const jug = jugOf(l.xs), ex = {debutant: '« touche »', debrouille: '« chassé » ou « crochet »', complet: '« fouetté haut »'}[jug];
+      const niv = INC_N[jug][0] + ' · ' + INC_N[jug][1];
+      let m;
+      if (!SET().voix) m = `Mode Inclusion ${niv} · saisie tactile (voix désactivée : Paramètres du cycle → Saisie vocale)`;
+      else if (Voix.statut === 'erreur') m = `Mode Inclusion ${niv} · ⚠ voix indisponible : ${esc(Voix.erreur)} (la saisie tactile reste possible)`;
+      else if (Voix.statut !== 'pret') m = `Mode Inclusion ${niv} · ⏳ chargement du modèle vocal… (saisie tactile possible)`;
+      else m = `Mode Inclusion ${niv} · 🎤 maintiens « Parler » et dis ${ex}`;
+      banner(l.xs, m, 'await voix');
+    },
     statutHTML() {
       return {off: 'inactive', chargement: '⏳ chargement du modèle…', pret: '✅ modèle prêt', erreur: '⚠ ' + (Voix.erreur || 'erreur')}[Voix.statut] || '';
     },
@@ -43,6 +56,7 @@
     monter() {
       Voix.demonter();
       const l = LV();
+      if (l && l.inc) Voix.accueil();
       if (!l || !l.inc || !SET().voix || !global.VocalEPS) return;
       const side = l.xs, g = GRAMMAIRES[jugOf(side)], box = document.getElementById('mic' + side);
       if (!g || !box) return;
