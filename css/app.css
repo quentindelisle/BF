@@ -540,3 +540,14 @@ body.fighting #sig{display:none}
 @supports (padding:max(1px,env(safe-area-inset-right,0px))){#sig{right:max(10px,env(safe-area-inset-right,0px));bottom:max(6px,env(safe-area-inset-bottom,0px))}}
 
 .compact .lhead{font:700 11px/1.15 var(--font);color:var(--muted);text-transform:uppercase;letter-spacing:.03em;border-top:0;border-bottom:2px solid var(--line);padding-bottom:2px}
+
+/* ---------- Mode Inclusion et saisie vocale ---------- */
+.half{position:relative}
+.arena.single{grid-template-columns:minmax(0,1fr)}
+.mic{position:absolute;z-index:4;top:26%}
+.mic:empty{display:none}
+.half.red .mic{left:12px}.half.blue .mic{right:12px}
+.mic .veps-btn{min-width:96px;min-height:96px;flex-direction:column;border-radius:28px;font-size:1rem;gap:.2em}
+.arena.vocal .sbtn[data-act="undo"]{flex:1 1 320px;min-height:46px}
+.arena.vocal .sbtn[data-act="undo"]::after{content:" Annuler la dernière touche";font:800 15px var(--display)}
+.incl-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
