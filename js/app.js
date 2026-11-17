@@ -4,7 +4,7 @@
    parcours prof en 4 étapes, échanges par QR codes, paramètres du cycle, piliers.
    ===================================================================== */
 'use strict';
-const APP_VERSION = '3.7.0';
+const APP_VERSION = '3.8.0';
 const ROOT_KEY = 'observbf.v3';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -57,7 +57,7 @@ const DEFAULT_PILIERS = [
   {id:'def', n:'Défendre et riposter', cr:['Pare ou esquive les attaques', 'Riposte après une parade', 'Garde la distance de sécurité']},
   {id:'arb', n:'Arbitrer et juger', cr:['Annonces claires : en garde, allez, stop', 'Sanctionne les frappes trop fortes', 'Compte les touches sans se tromper']}];
 const DEF_BAREME = {poing:{tete:1, tronc:1, bas:1, garde:0, nh:1}, pied:{tete:4, tronc:2, bas:1, garde:0, nh:2}};
-const DEF_SET = {voix:false, jmode:'lecon', nbLessons:6, current:1, totalMin:40, reprises:2, recupSec:30, transitionSec:60, mode:'auto', manualSec:60, bonusOn:true, bonusPts:1, bonusArmes:['direct','crochet','chasse','fouette'],
+const DEF_SET = {penHD:0, voix:false, jmode:'lecon', nbLessons:6, current:1, totalMin:40, reprises:2, recupSec:30, transitionSec:60, mode:'auto', manualSec:60, bonusOn:true, bonusPts:1, bonusArmes:['direct','crochet','chasse','fouette'],
   bareme:clone(DEF_BAREME), penalite:1, bonusEnch:0, seuil:0.18, ptsV:3, ptsN:2, ptsD:1, autoNext:10, bv:2};
 
 /* ---------------- État ---------------- */
@@ -299,7 +299,7 @@ function rankingTable(n, g, compact) {
 }
 
 /* ---------------- Points et statistiques ---------------- */
-function ptsOf(e) { if (!e.z) return 0; if (e.trop) return -Math.abs(+SET().penalite || 0); const B = SET().bareme[e.w] || {}, b = +(e.nh ? (B.nh ?? B.tronc ?? 0) : (B[e.cat] ?? 0)); return b > 0 ? b + (+e.bx || 0) : b; }
+function ptsOf(e) { if (!e.z) return 0; if (e.hd) return -Math.abs(+SET().penHD || 0); if (e.trop) return -Math.abs(+SET().penalite || 0); const B = SET().bareme[e.w] || {}, b = +(e.nh ? (B.nh ?? B.tronc ?? 0) : (B[e.cat] ?? 0)); return b > 0 ? b + (+e.bx || 0) : b; }
 const isValid = e => e.z && !e.trop && ptsOf(e) > 0;
 function enchStats(events, side) {
   const m = new Map();
@@ -310,14 +310,14 @@ function enchStats(events, side) {
 const scoreOf = (events, side) => events.filter(e => e.t === side).reduce((s, e) => s + ptsOf(e), 0);
 function sideStats(events, side) {
   const ev = events.filter(e => e.t === side), ev2 = ev.filter(e => !e.gen);
-  const st = {tent: ev.length, valid: ev.filter(isValid).length, trop: ev.filter(e => e.trop).length, bonus: ev.filter(e => e.bx && isValid(e)).length, cats: {}, coups: {}, nh: ev.filter(e => e.nh).length, gen: ev.filter(e => e.gen).length, cross: ev.filter(e => e.main && e.k && e.main !== e.k).length, ...enchStats(events, side)};
+  const st = {tent: ev.length, valid: ev.filter(isValid).length, trop: ev.filter(e => e.trop).length, hd: ev.filter(e => e.hd).length, bonus: ev.filter(e => e.bx && isValid(e)).length, cats: {}, coups: {}, nh: ev.filter(e => e.nh).length, gen: ev.filter(e => e.gen).length, cross: ev.filter(e => e.main && e.k && e.main !== e.k).length, ...enchStats(events, side)};
   for (const k in CATL) st.cats[k] = ev.filter(e => e.cat === k && !e.nh).length;
   for (const c in COUPS) { const ce = ev2.filter(e => e.c === c); st.coups[c] = {t: ce.length, v: ce.filter(isValid).length}; }
   st.poing = ev2.filter(e => e.w === 'poing').length; st.pied = ev2.filter(e => e.w === 'pied').length;
   return st;
 }
 function studentStats(id, n) {
-  const st = {J:0, V:0, N:0, D:0, pm:0, pe:0, tent:0, valid:0, trop:0, poing:0, pied:0, tries:0, ok:0, bonus:0, nh:0, gen:0, cross:0, jc:0, jp:0, rest:0, cats:{}, coups:{}};
+  const st = {J:0, V:0, N:0, D:0, pm:0, pe:0, tent:0, valid:0, trop:0, hd:0, poing:0, pied:0, tries:0, ok:0, bonus:0, nh:0, gen:0, cross:0, jc:0, jp:0, rest:0, cats:{}, coups:{}};
   for (const k in CATL) st.cats[k] = 0; for (const c in COUPS) st.coups[c] = {t: 0, v: 0};
   for (const a of S.assaults) {
     if (a.status !== 'done' || (n && a.n !== n)) continue;
@@ -326,7 +326,7 @@ function studentStats(id, n) {
     st.J++; st.pm += side === 'R' ? a.scoreR : a.scoreB; st.pe += side === 'R' ? a.scoreB : a.scoreR;
     if (a.winner === 'N') st.N++; else if (a.winner === side) st.V++; else st.D++;
     const s = sideStats(a.events || [], side);
-    for (const k of ['tent', 'valid', 'trop', 'poing', 'pied', 'tries', 'ok', 'bonus', 'nh', 'gen', 'cross']) st[k] += s[k];
+    for (const k of ['tent', 'valid', 'trop', 'hd', 'poing', 'pied', 'tries', 'ok', 'bonus', 'nh', 'gen', 'cross']) st[k] += s[k];
     for (const k in CATL) st.cats[k] += s.cats[k];
     for (const c in COUPS) { st.coups[c].t += s.coups[c].t; st.coups[c].v += s.coups[c].v; }
   }
@@ -559,7 +559,7 @@ function profCycle() {
         ${s.voix ? `<span id="voixStatut" class="pill">${window.Voix ? Voix.statutHTML() : ''}</span><button class="btn small" data-action="voixPrecharger">Précharger le modèle</button>` : ''}</div>
       <p class="note">Hors ligne (Vosk) : aucun son ne quitte la tablette. Le premier chargement télécharge 52 Mo : à faire <b>sur le Wi-Fi, avant la séance</b>, sur chaque tablette. La saisie tactile reste toujours disponible.</p></div>
     <div class="card"><h2>Valeurs des touches <span class="note">(la garde et le vide ne comptent pas)</span></h2><div class="cgrid">
-        ${f('Poing : direct, crochet', bv('poing', 'all', s.bareme.poing.tete))}${f('Trop fort (−)', num('penalite', 0, 5))}<span></span>
+        ${f('Poing : direct, crochet', bv('poing', 'all', s.bareme.poing.tete))}${f('Trop fort (−)', num('penalite', 0, 5))}${f('Hors distance (−)', num('penHD', 0, 5))}
         ${f('Pied · ligne basse (jambes)', bv('pied', 'bas', s.bareme.pied.bas))}${f('Pied · ligne médiane (flancs)', bv('pied', 'tronc', s.bareme.pied.tronc))}${f('Pied · ligne haute (visage)', bv('pied', 'tete', s.bareme.pied.tete))}</div>
       <div class="cgrid" style="margin-top:6px">${f('Points V / N / D', `<span class="row" style="gap:3px;flex-wrap:nowrap">${num('ptsV', 0, 10)}${num('ptsN', 0, 10)}${num('ptsD', 0, 10)}</span>`)}
         <label style="grid-column:span 2">Geste droit / courbe : ${Math.round(s.seuil * 100)} %<input type="range" min="0.08" max="0.40" step="0.01" data-field="set" data-k="seuil" value="${s.seuil}"></label></div></div></div>
@@ -670,7 +670,9 @@ function profNotice() {
     <div class="card"><h2>🧰 Boutons pendant l'assaut</h2>
       <table><tbody>
         <tr><td>↩️</td><td><b>Annuler</b> la dernière touche de son côté (comme le tap à 4 doigts).</td></tr>
-        <tr><td>💥</td><td><b>Frappe trop forte</b> : pénalise uniquement la <b>toute dernière</b> frappe de ce côté (un second appui retire la pénalité).</td></tr>
+        <tr><td>💥 Trop fort</td><td><b>Frappe trop forte</b> : pénalise uniquement la <b>toute dernière</b> frappe de ce côté (un second appui retire la pénalité).</td></tr>
+        <tr><td>📏 Hors distance</td><td><b>Frappe hors distance</b> : l'attaquant était trop proche quand il a frappé ; la dernière frappe n'est pas valable (pénalité réglable, 0 par défaut).</td></tr>
+        <tr><td>⬇ / ↔</td><td><b>Disposition de la saisie</b>, au choix de chaque observateur : <b>en bas</b> (gant et chaussure sous le personnage) ou <b>latérale</b> (les armes de chaque côté, on glisse vers le centre ; en expert, il faut dépasser le milieu de la tablette pour toucher le côté opposé).</td></tr>
         <tr><td>🔗</td><td><b>Enchaînement</b> au bouton (équivalent du double tap) ; présent seulement si la leçon autorise les enchaînements.</td></tr>
         <tr><td>Appui long sur « Terminer l'assaut »</td><td>propose de <b>déclarer un abandon</b> : l'autre tireur gagne.</td></tr></tbody></table></div>
     <div class="card"><h2>🏁 Groupes, tournoi, tablettes</h2>
@@ -729,9 +731,9 @@ function profStats() {
   const rows = sortedStudents().map(s => ({s, st: studentStats(s.id, n || null)}));
   return `<div class="row" style="margin-bottom:6px"><div class="lesson-picker mini"><button class="lp small ${!n ? 'on' : ''}" style="width:auto;padding:0 12px" data-action="statN" data-n="0">Cycle</button>${Array.from({length: SET().nbLessons}, (_, i) => i + 1).map(k => `<button class="lp small ${k === n ? 'on' : ''}" data-action="statN" data-n="${k}">${k}</button>`).join('')}</div>
       <span class="note">Touchez le nom d'un élève pour voir son bilan : cibles touchées par arme et répartition poings / pieds.</span></div>
-    <div class="card"><div class="table-wrap"><table class="tight"><thead><tr><th>Élève</th><th class="n">Assauts</th><th class="n">V-N-D</th><th class="n">Pts</th><th class="n">Coups</th><th class="n">Touches</th><th class="n">Effic.</th><th class="n">Dir.</th><th class="n">Cro.</th><th class="n">Cha.</th><th class="n">Fou.</th><th class="n">Visage</th><th class="n">Trop fort</th>${showCross ? '<th class="n" title="Coups croisés : main ou pied d\'un côté, cible de l\'autre">Croisés</th>' : ''}${showEnch ? '<th class="n">Ench.</th>' : ''}<th class="n">Arbitre</th><th class="n">Coach</th><th class="n">Repos</th>${showBon ? '<th class="n">Bonus</th>' : ''}</tr></thead><tbody>
+    <div class="card"><div class="table-wrap"><table class="tight"><thead><tr><th>Élève</th><th class="n">Assauts</th><th class="n">V-N-D</th><th class="n">Pts</th><th class="n">Coups</th><th class="n">Touches</th><th class="n">Effic.</th><th class="n">Dir.</th><th class="n">Cro.</th><th class="n">Cha.</th><th class="n">Fou.</th><th class="n">Visage</th><th class="n">Trop fort</th><th class="n" title="Frappes hors distance (trop proche)">H. dist.</th>${showCross ? '<th class="n" title="Coups croisés : main ou pied d\'un côté, cible de l\'autre">Croisés</th>' : ''}${showEnch ? '<th class="n">Ench.</th>' : ''}<th class="n">Arbitre</th><th class="n">Coach</th><th class="n">Repos</th>${showBon ? '<th class="n">Bonus</th>' : ''}</tr></thead><tbody>
     ${rows.map(({s, st}) => `<tr><td><span class="stat-name" data-action="statSid" data-sid="${s.id}">${esc(dispName(s))}</span></td><td class="n">${st.J}</td><td class="n">${st.V}-${st.N}-${st.D}</td><td class="n"><b>${st.pm}</b></td><td class="n">${st.tent}</td><td class="n">${st.valid}</td><td class="n">${st.tent ? Math.round(100 * st.valid / st.tent) + ' %' : '—'}</td>
-      ${COUP_KEYS.map(c => `<td class="n">${st.coups[c].v}/${st.coups[c].t}</td>`).join('')}<td class="n">${st.cats.tete}</td><td class="n">${st.trop}</td>${showCross ? `<td class="n">${st.cross}</td>` : ''}${showEnch ? `<td class="n">${st.ok}/${st.tries}</td>` : ''}<td class="n">${st.jc}</td><td class="n">${st.jp}</td><td class="n">${st.rest}</td>${showBon ? `<td class="n">${st.bonus}</td>` : ''}</tr>`).join('')}</tbody></table></div></div>`;
+      ${COUP_KEYS.map(c => `<td class="n">${st.coups[c].v}/${st.coups[c].t}</td>`).join('')}<td class="n">${st.cats.tete}</td><td class="n">${st.trop}</td><td class="n">${st.hd}</td>${showCross ? `<td class="n">${st.cross}</td>` : ''}${showEnch ? `<td class="n">${st.ok}/${st.tries}</td>` : ''}<td class="n">${st.jc}</td><td class="n">${st.jp}</td><td class="n">${st.rest}</td>${showBon ? `<td class="n">${st.bonus}</td>` : ''}</tr>`).join('')}</tbody></table></div></div>`;
 }
 function profObs() {
   const N = SET().nbLessons, byPil = {};
@@ -861,7 +863,7 @@ function afterReceive() {
 /* =====================================================================
    PAQUETS QR
    ===================================================================== */
-const SET_KEYS = ['voix', 'jmode', 'bareme', 'penalite', 'bonusEnch', 'seuil', 'ptsV', 'ptsN', 'ptsD', 'autoNext', 'recupSec', 'transitionSec', 'mode', 'manualSec', 'bonusOn', 'bonusPts', 'bonusArmes', 'totalMin', 'reprises'];
+const SET_KEYS = ['penHD', 'voix', 'jmode', 'bareme', 'penalite', 'bonusEnch', 'seuil', 'ptsV', 'ptsN', 'ptsD', 'autoNext', 'recupSec', 'transitionSec', 'mode', 'manualSec', 'bonusOn', 'bonusPts', 'bonusArmes', 'totalMin', 'reprises'];
 function lessonPacket(n) {
   S.groups.forEach(g => ensureSchedule(n, g));
   const L = lesson(n), ls = LS(n), cfg = lessonCfg(n), set = {}; SET_KEYS.forEach(k => set[k] = SET()[k]);
@@ -894,10 +896,10 @@ function applyLesson(p) {
 }
 function packEvents(a) {
   const m = {}; let k = 0;
-  return (a.events || []).map(e => [e.t === 'R' ? 0 : 1, e.w === 'poing' ? 0 : 1, COUP_KEYS.indexOf(e.c), e.z ? ZONES.indexOf(e.z) : -1, SIDES.indexOf(e.s), e.trop ? 1 : 0, e.ench ? (m[e.ench] = m[e.ench] || ++k) : 0, e.rep, Math.round((e.ts - a.startedAt) / 1000), e.bx || 0, e.h ? BLIND_H.indexOf(e.h) + 1 : 0, e.inc ? 1 : 0, (e.nh ? 1 : 0) | (e.gen ? 2 : 0), e.main === 'g' ? 1 : e.main === 'd' ? 2 : 0, e.k === 'g' ? 1 : e.k === 'd' ? 2 : 0]);
+  return (a.events || []).map(e => [e.t === 'R' ? 0 : 1, e.w === 'poing' ? 0 : 1, COUP_KEYS.indexOf(e.c), e.z ? ZONES.indexOf(e.z) : -1, SIDES.indexOf(e.s), e.trop ? 1 : 0, e.ench ? (m[e.ench] = m[e.ench] || ++k) : 0, e.rep, Math.round((e.ts - a.startedAt) / 1000), e.bx || 0, e.h ? BLIND_H.indexOf(e.h) + 1 : 0, e.inc ? 1 : 0, (e.nh ? 1 : 0) | (e.gen ? 2 : 0) | (e.hd ? 4 : 0), e.main === 'g' ? 1 : e.main === 'd' ? 2 : 0, e.k === 'g' ? 1 : e.k === 'd' ? 2 : 0]);
 }
 const unpackEvents = (arr, start) => (arr || []).map((x, i) => ({id: 'e' + i, t: x[0] ? 'B' : 'R', w: x[1] ? 'pied' : 'poing', c: COUP_KEYS[x[2]], z: x[3] >= 0 ? ZONES[x[3]] : null, s: x[4] >= 0 ? SIDES[x[4]] : null,
-  cat: x[3] >= 0 ? CAT[ZONES[x[3]]] : 'manque', trop: !!x[5], ench: x[6] ? 'x' + x[6] : null, rep: x[7], ts: start + x[8] * 1000, bx: x[9] || 0, h: x[10] ? BLIND_H[x[10] - 1] : undefined, inc: !!x[11], ...(x[12] & 1 ? {nh: true} : {}), ...(x[12] & 2 ? {gen: true} : {}), ...(x[13] ? {main: x[13] === 1 ? 'g' : 'd'} : {}), ...(x[14] ? {k: x[14] === 1 ? 'g' : 'd'} : {})}));
+  cat: x[3] >= 0 ? CAT[ZONES[x[3]]] : 'manque', trop: !!x[5], ench: x[6] ? 'x' + x[6] : null, rep: x[7], ts: start + x[8] * 1000, bx: x[9] || 0, h: x[10] ? BLIND_H[x[10] - 1] : undefined, inc: !!x[11], ...(x[12] & 1 ? {nh: true} : {}), ...(x[12] & 2 ? {gen: true} : {}), ...(x[12] & 4 ? {hd: true} : {}), ...(x[13] ? {main: x[13] === 1 ? 'g' : 'd'} : {}), ...(x[14] ? {k: x[14] === 1 ? 'g' : 'd'} : {})}));
 function resultsPacket() {
   const n = curLesson();
   const as = S.assaults.filter(a => a.n === n && a.status === 'done' && a.events && (UI.sendAll || a.d === ROOT.deviceId)).map(a => [a.id, a.gid || '', a.red, a.blue, a.order || 0, a.jc || '', a.jp || [], a.scoreR, a.scoreB, a.winner,
@@ -1229,7 +1231,7 @@ let BX = null;
 function openFight() {
   const l = LV(); if (!l) return;
   if (l.cid !== S.id && ROOT.classes[l.cid]) useClass(l.cid);
-  l.cfg = l.cfg || lessonCfg(l.n); l.lv = l.lv || {R: l.cfg.jug, B: l.cfg.jug}; l.xs = l.xs || 'R'; l.ench = l.ench || {R: null, B: null};
+  l.cfg = l.cfg || lessonCfg(l.n); l.lv = l.lv || {R: l.cfg.jug, B: l.cfg.jug}; l.lay = l.lay || {R: ROOT.lay?.R || 'bas', B: ROOT.lay?.B || 'bas'}; l.xs = l.xs || 'R'; l.ench = l.ench || {R: null, B: null};
   BFQR.stop(); $('#fight').hidden = false; document.body.classList.add('fighting');
   l.bonus = l.bonus || {R: null, B: null}; l.bonusPick = l.bonusPick || {R: 0, B: 0};
   $('#targetR').innerHTML = BFDraw.fighter({sexe: l.B.sexe, corner: 'B'}) + HEAT_LEGEND;
@@ -1248,13 +1250,24 @@ function openFight() {
 }
 /* Boutons de départ en bas de chaque moitié : gant / chaussure (ou une seule case en niveau débutant ; quatre boutons en expert) */
 function buildOrigins() {
-  const l = LV(), cfg = l.cfg;
+  const l = LV(), cfg = l.cfg, lay = l.lay || (l.lay = {R: 'bas', B: 'bas'});
   const mk = (side, arme, hand, mirror) => `<div class="weapon" data-side="${side}" data-arme="${arme}" ${hand ? `data-hand="${hand}"` : ''}>${arme === 'poing' ? BFDraw.glove(side, mirror) : BFDraw.shoe(side, mirror)}${hand ? `<b class="wl">${hand.toUpperCase()}</b>` : ''}</div>`;
+  const col = (cl, html) => `<div class="wcol ${cl}">${html}</div>`;
   for (const s of ['R', 'B']) {
-    const m = s === 'B', o = $('#origin' + s), jug = cfg.jug === 'expert' ? 'expert' : jugOf(s);
-    if (jug === 'debutant') o.innerHTML = `<div class="weapon both" data-side="${s}" data-arme="gen">${BFDraw.glove(s, m)}${BFDraw.shoe(s, m)}</div>`;
-    else if (jug === 'expert') o.innerHTML = s === l.xs ? mk(s, 'pied', 'g', false) + mk(s, 'poing', 'g', true) + mk(s, 'poing', 'd', false) + mk(s, 'pied', 'd', true) : '';
-    else { const parts = []; if (cfg.pied) parts.push(mk(s, 'pied', null, m)); if (cfg.poing) parts.push(mk(s, 'poing', null, m)); o.innerHTML = (m ? parts.reverse() : parts).join(''); }
+    const m = s === 'B', o = $('#origin' + s), jug = cfg.jug === 'expert' ? 'expert' : jugOf(s), lat = lay[s] === 'lat';
+    const both = mir => `<div class="weapon both" data-side="${s}" data-arme="gen">${BFDraw.glove(s, mir)}${BFDraw.shoe(s, mir)}</div>`;
+    let html = '';
+    if (jug === 'debutant') html = lat ? col('l', both(true)) + col('r', both(false)) : both(m);
+    else if (jug === 'expert') { if (s === l.xs) html = lat ? col('l', mk(s, 'poing', 'g', true) + mk(s, 'pied', 'g', false)) + col('r', mk(s, 'poing', 'd', false) + mk(s, 'pied', 'd', true))
+      : mk(s, 'pied', 'g', false) + mk(s, 'poing', 'g', true) + mk(s, 'poing', 'd', false) + mk(s, 'pied', 'd', true); }
+    else {
+      const arms = ['poing', 'pied'].filter(k => cfg[k]);
+      if (lat) html = col('l', arms.map(k => mk(s, k, null, k === 'poing')).join('')) + col('r', arms.map(k => mk(s, k, null, k !== 'poing')).join(''));
+      else { const parts = []; if (cfg.pied) parts.push(mk(s, 'pied', null, m)); if (cfg.poing) parts.push(mk(s, 'poing', null, m)); html = (m ? parts.reverse() : parts).join(''); }
+    }
+    o.innerHTML = html;
+    document.querySelector(`.half[data-side="${s}"]`).classList.toggle('lat', lat);
+    const lb = $(`.sbtn.lay[data-side="${s}"]`); lb.classList.toggle('on', lat); lb.innerHTML = lat ? '<i>↔</i><span>Latéral</span>' : '<i>⬇</i><span>En bas</span>';
   }
 }
 function closeFight() { if (window.Voix) Voix.demonter(); $('#fight').hidden = true; document.body.classList.remove('fighting'); stopClockLoop(); }
@@ -1308,6 +1321,8 @@ function renderFight() {
     const st = sideStats(l.events, s);
     $('#fSub' + s).textContent = `${st.valid} touche${st.valid > 1 ? 's' : ''} · ${st.tent} coup${st.tent > 1 ? 's' : ''}${st.trop ? ` · ${st.trop} trop fort` : ''}${l.cfg.ench && st.ok ? ` · ${st.ok} enchaîn.` : ''}`;
     const en = l.ench[s], b = $(`.sbtn.ench[data-side="${s}"]`);
+    const last = [...l.events].reverse().find(x => x.t === s);
+    $(`.sbtn.warn[data-side="${s}"]`).classList.toggle('on', !!last?.trop); $(`.sbtn.hd[data-side="${s}"]`).classList.toggle('on', !!last?.hd);
     b.hidden = !l.cfg.ench || jugOf(s) === 'debutant'; b.classList.toggle('on', !!en); b.title = en ? (en.n ? 'Enchaînement : 2e touche' : 'Enchaînement : 1re touche') : 'Enchaînement (ou double tap)';
   }
   const single = isSingle(l);
@@ -1435,7 +1450,7 @@ BX = BoxeSaisie.createEngine(arena, {
     const l = LV(), jug = l.cfg.jug, r = arena.getBoundingClientRect();
     const side = isSingle(l) ? l.xs : (p.x < p.w / 2 ? 'R' : 'B');
     let best = null, bd = Infinity;
-    arena.querySelectorAll(`.half[data-side="${side}"] .weapon`).forEach(el => { const b = el.getBoundingClientRect(), d = Math.abs(p.x + r.left - (b.left + b.right) / 2); if (d < bd) { bd = d; best = el; } });
+    arena.querySelectorAll(`.half[data-side="${side}"] .weapon`).forEach(el => { const b = el.getBoundingClientRect(), px = p.x + r.left, py = p.y + r.top, dx = Math.max(b.left - px, 0, px - b.right), dy = Math.max(b.top - py, 0, py - b.bottom), d = Math.hypot(dx, dy) + Math.hypot(px - (b.left + b.right) / 2, py - (b.top + b.bottom) / 2) * 0.001; if (d < bd) { bd = d; best = el; } });
     if (!best) return {side, key: side, arme: 'poing'};
     const arme = best.dataset.arme, hand = best.dataset.hand || null;
     return {side, key: jug === 'expert' ? side + arme + hand : side, arme, hand};
@@ -1522,10 +1537,20 @@ $$('.side-ctrl').forEach(c => c.addEventListener('click', e => {
     else { clearChain(side); defaultBanner(side); }
     save(); renderFight();
   }
+  if (act === 'lay') {       /* saisie latérale (armes de chaque côté, glissé vers le centre) ou en bas */
+    l.lay[side] = l.lay[side] === 'lat' ? 'bas' : 'lat'; ROOT.lay = {...l.lay}; save(); buildOrigins(); renderFight();
+    banner(side, l.lay[side] === 'lat' ? '↔ Saisie latérale : glisse depuis les armes vers le centre' : '⬇ Saisie en bas', 'ok'); setTimeout(() => defaultBanner(side), 2200);
+  }
+  if (act === 'hd') {        /* dernière frappe hors distance : l'attaquant était trop proche */
+    const ev = [...l.events].reverse().find(x => x.t === side);
+    if (!ev) return toast('Aucune frappe à marquer');
+    ev.hd = !ev.hd; if (ev.hd) ev.trop = false; save(); renderFight(); buzz([30, 60, 30]);
+    banner(side, ev.hd ? `📏 <b>Hors distance</b> : dernière frappe trop proche, non valable<span class="pts">${ptsOf(ev)}</span>` : '↩️ Hors distance retiré', ev.hd ? 'neg' : 'zero');
+  }
   if (act === 'trop') {      /* uniquement la toute dernière frappe de ce côté */
     const ev = [...l.events].reverse().find(x => x.t === side);
     if (!ev) return toast('Aucune frappe à pénaliser');
-    ev.trop = !ev.trop; save(); renderFight(); buzz([30, 60, 30]);
+    ev.trop = !ev.trop; if (ev.trop) ev.hd = false; save(); renderFight(); buzz([30, 60, 30]);
     banner(side, ev.trop ? `💥 <b>Trop fort</b> : dernière frappe pénalisée<span class="pts">${ptsOf(ev)}</span>` : '↩️ Pénalité retirée', ev.trop ? 'neg' : 'zero');
   }
   if (act === 'undo') {
@@ -1608,6 +1633,7 @@ function openResult() {
     if (cfg.ench && jug !== 'debutant') rows.push(['Enchaînements réussis', `${st.ok} / ${st.tries}`]);
     if (cfg.bon && jug !== 'debutant') rows.push(['Touches arme bonus', st.bonus]);
     rows.push(['Frappes trop fortes', st.trop]);
+    rows.push(['Frappes hors distance', st.hd]);
     return `<div class="res-col ${side}"><h3>${esc(l[side].name)}</h3><div class="kv">${rows.map(([k, v]) => `<span>${k}</span><b>${v}</b>`).join('')}</div>
       ${bilanHTML(l.events, side, {id: 'rh' + side, sexe: l[o].sexe, corner: o})}<span class="note" style="display:block;text-align:center">Cibles touchées sur ${esc(l[o].name)}</span>${obsBlock(side)}</div>`; };
   $('#resultBody').innerHTML = `<div class="result">
@@ -1670,10 +1696,10 @@ function exportXlsx() {
     [7, 14, 24, 24, 11, 10, 24, 22, 22, 22, 34, 10, 20, 9]);
   const se = [['Élève', 'Groupe', 'Sexe', 'Assauts', 'Victoires', 'Nuls', 'Défaites', 'Points marqués', 'Points encaissés', 'Coups observés', 'Touches valables', 'Efficacité (%)',
     'Directs (tentés)', 'Directs (valables)', 'Crochets (tentés)', 'Crochets (valables)', 'Chassés (tentés)', 'Chassés (valables)', 'Fouettés (tentés)', 'Fouettés (valables)',
-    'Touches visage', 'Touches tronc', 'Touches ligne basse', 'Touches bras/garde', 'Dans le vide', 'Frappes trop fortes', 'Enchaînements tentés', 'Enchaînements réussis', 'Touches arme bonus', 'Arbitre (nb)', 'Coach (nb)', 'Repos (nb)']];
+    'Touches visage', 'Touches tronc', 'Touches ligne basse', 'Touches bras/garde', 'Dans le vide', 'Frappes trop fortes', 'Frappes hors distance', 'Enchaînements tentés', 'Enchaînements réussis', 'Touches arme bonus', 'Arbitre (nb)', 'Coach (nb)', 'Repos (nb)']];
   for (const s of sortedStudents()) { const st = studentStats(s.id);
     se.push([realName(s), groupOf(s.id)?.name || '', s.sexe, st.J, st.V, st.N, st.D, st.pm, st.pe, st.tent, st.valid, st.tent ? Math.round(100 * st.valid / st.tent) : '',
-      ...COUP_KEYS.flatMap(c => [st.coups[c].t, st.coups[c].v]), st.cats.tete, st.cats.tronc, st.cats.bas, st.cats.garde, st.cats.manque, st.trop, st.tries, st.ok, st.bonus, st.jc, st.jp, st.rest]); }
+      ...COUP_KEYS.flatMap(c => [st.coups[c].t, st.coups[c].v]), st.cats.tete, st.cats.tronc, st.cats.bas, st.cats.garde, st.cats.manque, st.trop, st.hd, st.tries, st.ok, st.bonus, st.jc, st.jp, st.rest]); }
   add('Stats élèves', se, [26, 12, 6, ...Array(27).fill(12)]);
   const pl = [['Élève', 'Groupe', 'Leçon', 'Pilier', 'Critère', 'Observation']];
   for (let n = 1; n <= N; n++) { const p = lessonPil(n); if (!p) continue;

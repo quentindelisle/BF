@@ -573,3 +573,26 @@ body.fighting #ver{display:none}
 .lx.okk{background:#B9F0C4;border-color:var(--green)}
 .lx.ko{background:#FFD0CC;border-color:var(--warn)}
 .lex-n{font:600 11px/1.3 var(--font);color:var(--muted)}
+
+/* ---------- boutons d'assaut plus visibles ; saisie latérale ---------- */
+.sbtn{flex:1 1 0;display:flex;align-items:center;justify-content:center;gap:5px;border-radius:12px;border:2px solid var(--line);background:#fff;font:800 14px/1.05 var(--display);padding:4px 8px;min-height:46px;min-width:0}
+.sbtn[hidden]{display:none}
+.sbtn i{font-style:normal;font-size:20px}
+.sbtn.warn{background:#FFF1E0;border-color:var(--orange);color:#B53D00}
+.sbtn.hd{background:#E8F1FF;border-color:#1E6FE0;color:#0D47A1}
+.sbtn.warn.on{background:var(--warn);border-color:var(--warn);color:#fff}
+.sbtn.hd.on{background:#1E6FE0;border-color:#1E6FE0;color:#fff}
+.sbtn.lay{flex:0 1 112px;color:var(--navy)}
+.sbtn.lay.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.sbtn.ench{flex:0 1 54px}
+.sbtn[data-act="undo"]{flex:0 1 72px}
+.half.lat{grid-template-columns:minmax(0,1fr) minmax(0,1.7fr) minmax(0,1fr);grid-template-areas:"banner banner banner" "wl target wr" "ctrl ctrl ctrl";grid-template-rows:auto minmax(0,1fr) auto}
+.arena.single .half.lat,.arena.expert .half.lat{grid-template-columns:230px minmax(0,1fr) 230px}
+.half.lat .origin{display:contents}
+.wcol{display:flex;flex-direction:column;gap:6px;min-height:0;min-width:0}
+.wcol.l{grid-area:wl}.wcol.r{grid-area:wr}
+.wcol .weapon{flex:1}
+.half.lat .weapon.both{flex-direction:column}
+.half.lat .weapon.both svg{width:80%;height:44%}
+.half.lat.red .mic{left:250px}.half.lat.blue .mic{right:250px}
+.half.lat.red .lex{right:250px;width:190px}.half.lat.blue .lex{left:250px;width:190px}

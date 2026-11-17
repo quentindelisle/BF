@@ -56,3 +56,7 @@ Une tablette sans leçon peut lancer un assaut libre (noms saisis). Chaque touch
 ## Version 3.7 — lexique à l'écran et écoute continue (mode Inclusion)
 - Le **lexique du niveau** (N1 / N2 / N3) s'affiche à côté du personnage ; ce que la tablette reconnaît se **surligne en direct** (jaune pendant que l'on parle, vert quand la touche est enregistrée, rouge si incomplet).
 - **Écoute continue** (bouton sous « Parler ») : le micro reste ouvert pendant tout l'assaut et chaque touche annoncée s'ajoute l'une après l'autre. Il se coupe à la fin de l'assaut.
+
+## Version 3.8 — saisie latérale, hors distance
+- **Disposition de la saisie** au choix de chaque observateur, sur l'écran de saisie (bouton ⬇ « En bas » / ↔ « Latéral ») : en bas (inchangé) ou latérale (gant et chaussure de chaque côté, on glisse vers le centre où se trouve le boxeur ; en expert, il faut dépasser le milieu de la tablette pour toucher le côté opposé). Mémorisé sur la tablette.
+- **💥 Trop fort** plus visible (bouton large, orange, qui reste allumé tant que la dernière frappe est marquée) et nouveau **📏 Hors distance** (l'attaquant était trop proche : dernière frappe non valable, pénalité réglable dans Paramètres du cycle, 0 par défaut). Compté dans le bilan, les stats et l'export.
