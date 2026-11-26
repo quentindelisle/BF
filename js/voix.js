@@ -52,7 +52,6 @@
       const niv = INC_N[jug] ? INC_N[jug][0] + ' · ' + INC_N[jug][1] : 'Expert';
       let m;
       if (jug === 'expert') m = 'Mode Adapté · Expert : saisie tactile (la voix couvre les niveaux Débutant à Complet)';
-      else if (!SET().voix) m = `Mode Adapté ${niv} · saisie tactile (voix désactivée : Paramètres du cycle → Saisie vocale)`;
       else if (Voix.statut === 'erreur') m = `Mode Adapté ${niv} · ⚠ voix indisponible : ${esc(Voix.erreur)} (la saisie tactile reste possible)`;
       else if (Voix.statut !== 'pret') m = `Mode Adapté ${niv} · ⏳ chargement du modèle vocal… (saisie tactile possible)`;
       else if (Voix.continu) m = `Mode Adapté ${niv} · 🎧 écoute continue : annonce tes touches (${ex})`;
@@ -87,7 +86,7 @@
       const side = l.xs, jug = jugOf(side), lex = document.getElementById('lex' + side);
       if (lex && LEXIQUE[jug]) lex.innerHTML = LEXIQUE[jug]();
       Voix.accueil();
-      if (!SET().voix || !global.VocalEPS) return;
+      if (!global.VocalEPS) return;
       const g = GRAMMAIRES[jug], box = document.getElementById('mic' + side);
       if (!g || !box) return;
       const v = VocalEPS.creer({

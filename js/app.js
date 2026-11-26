@@ -4,7 +4,7 @@
    parcours prof en 4 étapes, échanges par QR codes, paramètres du cycle, piliers.
    ===================================================================== */
 'use strict';
-const APP_VERSION = '3.13.1';
+const APP_VERSION = '3.13.2';
 const ROOT_KEY = 'observbf.v3';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -574,10 +574,10 @@ function profCycle() {
         ${f('Points en plus', num('bonusPts', 1, 5))}</div>
       <div class="row" style="margin-top:5px">${COUP_KEYS.map(c => `<label class="chk"><input type="checkbox" data-field="bonusArme" data-c="${c}" ${s.bonusArmes.includes(c) ? 'checked' : ''}> ${COUPS[c].l}</label>`).join('')}</div></div></div>
     <div class="pcol">
-    <div class="card"><h2>🎤 Saisie vocale <span class="note">(option, mode Inclusion)</span></h2>
-      <div class="row"><div class="seg small"><button class="${s.voix ? '' : 'on'}" data-action="setVoix" data-v="0">Désactivée</button><button class="${s.voix ? 'on' : ''}" data-action="setVoix" data-v="1">Activée</button></div>
-        ${s.voix ? `<span id="voixStatut" class="pill">${window.Voix ? Voix.statutHTML() : ''}</span><button class="btn small" data-action="voixPrecharger">Précharger le modèle</button>` : ''}</div>
-      <p class="note">Hors ligne (Vosk) : aucun son ne quitte la tablette. Le premier chargement télécharge 52 Mo : à faire <b>sur le Wi-Fi, avant la séance</b>, sur chaque tablette. La saisie tactile reste toujours disponible.</p></div>
+    <div class="card"><h2>🎤 Mode Adapté · voix <span class="note">(toujours proposé à la préparation de l'assaut)</span></h2>
+      <div class="row"><div class="seg small"><button class="${s.voix ? '' : 'on'}" data-action="setVoix" data-v="0">Chargement à la demande</button><button class="${s.voix ? 'on' : ''}" data-action="setVoix" data-v="1">Préchargement automatique</button></div>
+        <span id="voixStatut" class="pill">${window.Voix ? Voix.statutHTML() : ''}</span><button class="btn small" data-action="voixPrecharger">Précharger le modèle</button></div>
+      <p class="note">Hors ligne (Vosk) : aucun son ne quitte la tablette. Le premier chargement télécharge 52 Mo : à faire <b>sur le Wi-Fi, avant la séance</b>, sur chaque tablette (« Préchargement automatique » le fait à l'ouverture de l'appli). La saisie tactile reste toujours disponible.</p></div>
     <div class="card"><h2>Valeurs des touches <span class="note">(la garde et le vide ne comptent pas)</span></h2><div class="cgrid">
         ${f('Poing : direct, crochet', bv('poing', 'all', s.bareme.poing.tete))}${f('Trop fort (−)', num('penalite', 0, 5))}${f('Hors distance (−)', num('penHD', 0, 5))}
         ${f('Pied · ligne basse (jambes)', bv('pied', 'bas', s.bareme.pied.bas))}${f('Pied · ligne médiane (flancs)', bv('pied', 'tronc', s.bareme.pied.tronc))}${f('Pied · ligne haute (visage)', bv('pied', 'tete', s.bareme.pied.tete))}</div>
@@ -801,10 +801,9 @@ function prepObs(P) {
     <select data-field="prepSel" data-k="md" data-s="${s}" aria-label="Mode de saisie">${Object.entries(MD).map(([k, t]) => `<option value="${k}" ${P.md[s] === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
     <select data-field="prepSel" data-k="lv" data-s="${s}" aria-label="Niveau">${Object.entries(JUG_C).map(([k, t]) => `<option value="${k}" ${P.lv[s] === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>`;
   return `<div class="incl-bar"><span class="lbl">Observateurs sur la tablette</span><div class="seg small"><button class="${P.n === 2 ? 'on' : ''}" data-action="prepN" data-v="2">2 observateurs</button><button class="${P.n === 1 ? 'on' : ''}" data-action="prepN" data-v="1">1 seul</button></div>
-      ${P.n === 1 ? `<span class="lbl">Je regarde</span><div class="seg small"><button class="${P.xs === 'R' ? 'on' : ''}" data-action="prepXs" data-v="R">🔴 ${nm('R')}</button><button class="${P.xs === 'B' ? 'on' : ''}" data-action="prepXs" data-v="B">🔵 ${nm('B')}</button></div>` : ''}
-      <button class="btn small ghost" data-action="calibrer" title="Régler la taille de 4 cm sur cette tablette">📏 Étalonner ${minCm()} cm</button></div>
+      ${P.n === 1 ? `<span class="lbl">Je regarde</span><div class="seg small"><button class="${P.xs === 'R' ? 'on' : ''}" data-action="prepXs" data-v="R">🔴 ${nm('R')}</button><button class="${P.xs === 'B' ? 'on' : ''}" data-action="prepXs" data-v="B">🔵 ${nm('B')}</button></div>` : ''}</div>
     ${active.map(row).join('')}
-    <p class="note" style="margin:0">Adapté${SET().voix ? '' : ' (voix désactivée)'} et Expert : 1 observateur par tablette · un geste de moins de ${minCm()} cm n'est jamais compté.</p>`;
+    <p class="note" style="margin:0">Adapté (voix) et Expert : 1 observateur par tablette · un geste de moins de ${minCm()} cm n'est jamais compté.</p>`;
 }
 function viewPrep() {
   const P = UI.P, n = curLesson(), g = groupById(P.gid), pil = lessonPil(n);
@@ -1220,7 +1219,7 @@ const A = {
     render();
   },
   prepXs: d => { UI.P.xs = d.v; render(); },
-  prepMd: d => { const P = UI.P; P.md[d.s] = d.v; if (d.v === 'adapte') { P.n = 1; P.xs = d.s; } ROOT.obsMd = {...P.md}; save(); render(); },
+  prepMd: d => { const P = UI.P; P.md[d.s] = d.v; if (d.v === 'adapte') { P.n = 1; P.xs = d.s; if (window.Voix) Voix.init(true); } ROOT.obsMd = {...P.md}; save(); render(); },
   prepLv: d => { const P = UI.P; P.lv[d.s] = d.v; P.lvTouched = true; if (d.v === 'expert') { P.n = 1; P.xs = d.s; } render(); },
   calibrer: () => {
     const cm = minCm();
