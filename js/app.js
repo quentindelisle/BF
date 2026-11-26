@@ -4,7 +4,7 @@
    parcours prof en 4 étapes, échanges par QR codes, paramètres du cycle, piliers.
    ===================================================================== */
 'use strict';
-const APP_VERSION = '3.14.2';
+const APP_VERSION = '3.14.3';
 const ROOT_KEY = 'observbf.v3';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -859,7 +859,8 @@ function startAssault() {
   const t = timing(n, P.free ? 0 : presentMembers(n, g).length);
   const fighter = (id, side) => { const s = stu(id); return {id, name: fullName(s) || (P.guest[side].name || '').trim() || (side === 'R' ? 'Rouge' : 'Bleu'), sexe: s ? s.sexe : P.guest[side].sexe}; };
   const lvDef = levelsFor(n, [P.jp[0] || '', P.jp[1] || '']), exp = lvDef.R === 'expert' || lvDef.B === 'expert';
-  const setup = {n: exp ? 1 : (ROOT.obsN || 2), xs: 'R', md: {...(ROOT.obsMd || {R: 'hauteur', B: 'hauteur'})}, lv: {...lvDef}, lay: {R: ROOT.lay?.R || 'bas', B: ROOT.lay?.B || 'bas'}};
+  const md0 = {...(ROOT.obsMd || {R: 'hauteur', B: 'hauteur'})}; if (!exp) ['R', 'B'].forEach(s => { if (md0[s] === 'adapte') md0[s] = 'hauteur'; });   // par défaut : 2 observateurs sur la tablette
+  const setup = {n: exp ? 1 : 2, xs: 'R', md: md0, lv: {...lvDef}, lay: {R: ROOT.lay?.R || 'bas', B: ROOT.lay?.B || 'bas'}};
   ROOT.live = {cid: S.id, n, aid: P.aid, gid: P.gid, free: P.free, R: fighter(P.red, 'R'), B: fighter(P.blue, 'B'), jc: P.jc, jp: [P.jp[0] || '', P.jp[1] || ''],
     events: [], ench: {R: null, B: null}, bonus: {R: null, B: null}, bonusPick: {R: 0, B: 0}, pil: lessonPil(n), obs: {R: [], B: []},
     cfg: lessonCfg(n), lv: {...lvDef}, md: {...setup.md}, single: setup.n === 1, inc: null, xs: 'R', xsDone: true, lay: {...setup.lay}, setup, setupDone: false, chain: {R: null, B: null},

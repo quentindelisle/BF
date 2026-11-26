@@ -15,11 +15,13 @@
     const fig = (global.BF_FIG || {})[k] || {zones: []};
     const vz = fig.zones.find(z => z.z === 'ventre'), axis = vz ? (bboxX(vz.d)[0] + bboxX(vz.d)[1]) / 2 : FIG_W / 2;   // axe du corps
     const id = 'bfc' + (++clipN);
+    // la cible « ventre » couvre tout le tee-shirt : torse, ventre et épaules
+    const teeD = fig.zones.filter(z => z.z === 'tronc' || z.z === 'ventre' || z.z === 'epaule').map(z => z.d).join(' ');
     const part = (z, side, clip) => `<g class="part" data-zone="${z.z}" data-side="${side}"${clip ? ` clip-path="url(#${id}${side})"` : ''}><title>${ZL[z.z]}</title>` +
       `<g class="base"><path d="${z.d}" fill="#fff" fill-opacity="0.001"/></g>` +
       `<g class="heat"><path d="${z.d}"/></g>` +
       `<g class="hl"><path d="${z.d}" stroke-width="5" stroke-linejoin="round"/></g></g>`;
-    const parts = fig.zones.map(z => SPLIT.has(z.z) && z.s === 'c' ? part(z, 'g', true) + part(z, 'd', true) : part(z, z.s, false)).join('');
+    const parts = fig.zones.map(z0 => { const z = z0.z === 'ventre' ? Object.assign({}, z0, {d: teeD}) : z0; return SPLIT.has(z.z) && z.s === 'c' ? part(z, 'g', true) + part(z, 'd', true) : part(z, z.s, false); }).join('');
     const defs = `<defs><clipPath id="${id}g"><rect x="0" y="0" width="${axis}" height="${FIG_H}"/></clipPath><clipPath id="${id}d"><rect x="${axis}" y="0" width="${FIG_W - axis}" height="${FIG_H}"/></clipPath></defs>`;
     return `<svg class="fighter" viewBox="0 0 ${FIG_W} ${FIG_H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Cibles sur le boxeur">${defs}` +
       `<image href="img/fig-${k.toLowerCase()}-${corner}.webp" x="0" y="0" width="${FIG_W}" height="${FIG_H}"/>${parts}</svg>`;
