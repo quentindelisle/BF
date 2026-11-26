@@ -48,11 +48,30 @@
       const sc = {R: scoreOf(evs.slice(0, i + 1), 'R'), B: scoreOf(evs.slice(0, i + 1), 'B')};
       items.push({t: tr, side: e.t, e, tech: techOf(e), sc, pts: ptsOf(e)});
     });
-    return {items, dur: (items.length ? tr : LEAD) + TAIL, skipped: Math.round(skipped), evs};
+    return {items, dur: (items.length ? tr : LEAD) + TAIL, skipped: Math.round(skipped), evs, seq: {R: seqOf('R', items), B: seqOf('B', items)}};
+  }
+  /* Séquence des changements de pose d'un boxeur : garde → (genou levé) → coup → (genou levé) → garde.
+     Si le coup suivant arrive avant le retour en garde, on enchaîne directement : moins de changements = animation plus fluide. */
+  function seqOf(side, items) {
+    let seq = [{t: -99, pose: 'guard34'}];
+    items.filter(it => it.side === side).forEach(it => {
+      const k = it.tech.kick, ev = k ? [[it.t - 0.34, 'knee'], [it.t - 0.12, it.tech.sprite], [it.t + 0.22, 'knee'], [it.t + 0.38, 'guard34']] : [[it.t - 0.10, it.tech.sprite], [it.t + 0.24, 'guard34']];
+      seq = seq.filter(s => s.t < ev[0][0]);
+      while (seq.length > 1 && (seq[seq.length - 1].pose === 'guard34' || seq[seq.length - 1].pose === 'knee') && ev[0][0] - seq[seq.length - 1].t < 0.3) seq.pop();   // pas de retour en garde éclair entre deux coups rapprochés
+      ev.forEach(([t, pose]) => { if (seq[seq.length - 1].pose !== pose) seq.push({t, pose}); });
+    });
+    return seq;
+  }
+  const XF = 0.09;                                              // durée du fondu enchaîné entre deux poses
+  function layersAt(seq, t) {
+    let i = 0; while (i + 1 < seq.length && seq[i + 1].t - XF / 2 <= t) i++;
+    const cur = seq[i], prev = seq[i - 1];
+    const k = prev ? smooth((t - (cur.t - XF / 2)) / XF) : 1;
+    return k >= 1 ? [[cur.pose, 1]] : [[prev.pose, 1 - k], [cur.pose, k]];
   }
 
   /* ---------- scène ---------- */
-  const D = 168;                                                // écart entre les deux boxeurs (unités du dessin : garde = 300)
+  const D = 192;                                                // écart entre les deux boxeurs (unités du dessin : garde = 300) : un coup n'est valable que bras / jambe tendus
   function layout(W, H) { const u = H * 0.72 / 300; return {u, ground: H * 0.9, xR: W / 2 - D * u / 2, xB: W / 2 + D * u / 2}; }
   /* enveloppe d'un coup (temps relatif à l'impact) : A = engagement dans le coup, S = part de la pose finale (le reste = genou levé) */
   function envelope(tech, dt) {
@@ -61,13 +80,13 @@
   }
   function lungeOf(it) {                                         // avance du boxeur pour que gant / pied atteigne l'adversaire
     const m = META[it.tech.sprite]; if (!m) return 0;
-    return clamp((D - 24) - (m.cx - m.ax), -22, 62);
+    return clamp((D - 24) - (m.cx - m.ax), -14, 72);
   }
-  function drawSprite(ctx, name, corner, x, ground, u, alpha, f, tilt) {
+  function drawSprite(ctx, name, corner, x, ground, u, alpha, f, tilt, sy) {
     const m = META[name], im = IMGS[name + '_' + (corner === 'R' ? 'r' : 'b')]; if (!m || !im || !im.complete || alpha <= 0.004) return;
-    ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, ground); if (tilt) ctx.rotate(tilt * f); ctx.scale(f * u, u); ctx.drawImage(im, -m.ax, -m.h, m.w, m.h); ctx.restore();
+    ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, ground); if (tilt) ctx.rotate(tilt * f); ctx.scale(f * u, u * (sy || 1)); ctx.drawImage(im, -m.ax, -m.h, m.w, m.h); ctx.restore();
   }
-  function boxerAt(side, t, items) {
+  function boxerAt(side, t, items, st) {
     const f = side === 'R' ? 1 : -1, opp = side === 'R' ? 'B' : 'R', ph = side === 'B' ? 0.5 : 0;
     // coup en cours
     let cur = null, env = {A: 0, S: 0}, dtc = 0;
@@ -77,23 +96,19 @@
     if (cur) { const lg = lungeOf(cur), k = cur.tech.kick ? 0.4 * env.A * (1 - env.S) + env.S * env.A : env.A; dx = lg * k; dip = 4 * env.A; }
     // coup reçu : recul et inclinaison
     for (let i = items.length - 1; i >= 0; i--) { const it = items[i]; if (it.side === opp && t >= it.t && t < it.t + 0.42) { const b = (1 - (t - it.t) / 0.42) * (it.e.hd ? 0.35 : 1); dx -= 16 * b; tilt -= 0.07 * b; break; } }
-    // garde (deux poses qui alternent)
-    const ph2 = (t / 0.46 + ph), idx = Math.floor(ph2) % 2, fr = ph2 - Math.floor(ph2), swap = ramp(fr, 0.72, 1);
-    const layers = [], idleW = 1 - env.A, g1 = idx === 0 ? 'guard34' : 'p_guard34', g2 = idx === 0 ? 'p_guard34' : 'guard34';
-    layers.push([g1, idleW * (1 - swap)], [g2, idleW * swap]);
-    if (cur) { if (cur.tech.kick) { layers.push(['knee', env.A * (1 - env.S)]); layers.push([cur.tech.sprite, env.A * env.S]); } else layers.push([cur.tech.sprite, env.A]); }
-    const top = layers.reduce((a, b) => b[1] > a[1] ? b : a);          // pose à pose : on passe d'une pose dessinée à l'autre sans fondu fantôme
-    return {f, dx, tilt, dip, layers: [[top[0], 1]], cur, env, A: env.A};
+    // poses : séquence précalculée, avec un souffle léger sur place (la garde ne change plus de dessin)
+    const layers = layersAt(st.tl.seq[side], t), breath = Math.sin(t * 4.6 + ph * 6);
+    return {f, dx, tilt, dip: dip + breath * 1.6, sy: 1 + 0.006 * breath, layers, cur, env, A: env.A};
   }
   function draw2d(ctx, W, H, t, st) {
     const L = layout(W, H), items = st.tl.items, data = st.data;
     const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#EAF2FF'); g.addColorStop(0.62, '#FFFFFF'); g.addColorStop(0.62, '#DCE8FA'); g.addColorStop(1, '#C9DBF5'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     ctx.strokeStyle = '#A9C0E8'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, L.ground - 2); ctx.lineTo(W, L.ground - 2); ctx.stroke();
     if (state !== 'ready') { ctx.fillStyle = '#5C6B8C'; ctx.font = '700 18px "Barlow", sans-serif'; ctx.textAlign = 'center'; ctx.fillText(state === 'error' ? 'Images du récap indisponibles' : 'Chargement des poses…', W / 2, H / 2); return; }
-    const P = {R: boxerAt('R', t, items), B: boxerAt('B', t, items)}, X = {R: L.xR, B: L.xB};
+    const P = {R: boxerAt('R', t, items, st), B: boxerAt('B', t, items, st)}, X = {R: L.xR, B: L.xB};
     ['R', 'B'].forEach(s => { const x = X[s] + P[s].f * P[s].dx * L.u; ctx.fillStyle = 'rgba(19,40,90,.16)'; ctx.beginPath(); ctx.ellipse(x, L.ground + 2, 70 * L.u, 9 * L.u, 0, 0, 7); ctx.fill(); });
     const order = P.R.A >= P.B.A ? ['B', 'R'] : ['R', 'B'];
-    order.forEach(s => { const b = P[s], x = X[s] + b.f * b.dx * L.u; b.layers.forEach(([name, w]) => drawSprite(ctx, name, s, x, L.ground + b.dip * L.u * 0.2, L.u, w, b.f, b.tilt)); });
+    order.forEach(s => { const b = P[s], x = X[s] + b.f * b.dx * L.u; b.layers.forEach(([name, w]) => drawSprite(ctx, name, s, x, L.ground + b.dip * L.u * 0.2, L.u, w, b.f, b.tilt, b.sy)); });
     // impacts : étoile au point de contact de la pose
     items.forEach(it => {
       const dt = t - it.t; if (dt < 0 || dt >= 0.7) return;
