@@ -4,35 +4,12 @@
    Moteur 3D minimal écrit pour l'appli (aucune bibliothèque, fonctionne hors ligne). */
 (function (global) {
   'use strict';
-  const NAVY = '#0A1F4D', SKIN = '#FCB273', SKIN_D = '#E8975C', HAIR = '#853100', PANTS = '#14307A', SHOE = '#1A2A55', TEE_B = '#2F7BEA', ACC = {R: '#E53935', B: '#2F7BEA'};
+  const NAVY = '#0A1F4D', SKIN = '#F4B07A', SKIN_D = '#E8975C', HAIR = '#8A4B1F', PANTS = '#1B3A8F', SHOE = '#1A2A55', TEE_B = '#2F7BEA';
   const COL = {R: '#E53935', B: '#1E6FE0'};
   const GAP_MAX = 5, LEAD = 1.2, TAIL = 1.8;
   const rad = d => d * Math.PI / 180;
   const lerp = (a, b, k) => a + (b - a) * k, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const easeOut = k => 1 - Math.pow(1 - k, 3), easeIn = k => k * k * k, easeIO = k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
-  /* ---------- illustrations de l'appli (visages, gants, chaussures, logo) ---------- */
-  const IMG = {}, HEADS = {}, LOGOS = {}; let assetsReady = false, assetsLoading = false;
-  const HEAD_CROP = {g: {cx: 280, cy: 100, rx: 112, ry: 100}, n: {cx: 280, cy: 100, rx: 112, ry: 100}, f: {cx: 250, cy: 104, rx: 152, ry: 100}};
-  const LOGO_CROP = {x: 246, y: 236, w: 100, h: 78};
-  function buildAssets() {
-    ['g', 'f', 'n'].forEach(k => ['r', 'b'].forEach(c => {
-      const im = IMG[`fig-${k}-${c}`]; if (!im) return;
-      const h = HEAD_CROP[k], cv = document.createElement('canvas'); cv.width = h.rx * 2; cv.height = h.ry * 2;
-      const x = cv.getContext('2d'); x.save(); x.beginPath(); x.ellipse(h.rx, h.ry, h.rx, h.ry, 0, 0, 7); x.clip(); x.drawImage(im, h.cx - h.rx, h.cy - h.ry, h.rx * 2, h.ry * 2, 0, 0, h.rx * 2, h.ry * 2); x.restore();
-      HEADS[`${k}-${c}`] = cv;
-      const lg = document.createElement('canvas'); lg.width = LOGO_CROP.w; lg.height = LOGO_CROP.h;
-      lg.getContext('2d').drawImage(im, LOGO_CROP.x, LOGO_CROP.y, LOGO_CROP.w, LOGO_CROP.h, 0, 0, LOGO_CROP.w, LOGO_CROP.h); LOGOS[`${k}-${c}`] = lg;
-    }));
-    assetsReady = ['fig-g-r', 'fig-f-b', 'glove-r', 'shoe-b'].every(n => IMG[n]);
-  }
-  function loadAssets() {
-    if (assetsLoading) return; assetsLoading = true;
-    const list = []; ['g', 'f', 'n'].forEach(k => ['r', 'b'].forEach(c => list.push(`fig-${k}-${c}`))); ['r', 'b'].forEach(c => list.push('glove-' + c, 'shoe-' + c));
-    let n = 0; const done = () => { if (++n === list.length) buildAssets(); };
-    list.forEach(name => { const i = new Image(); i.onload = () => { IMG[name] = i; done(); }; i.onerror = done; i.src = 'img/' + name + '.webp'; });
-  }
-  const figKey = (o, side) => `${o.sexe === 'F' ? 'f' : o.sexe === 'N' ? 'n' : 'g'}-${side === 'R' ? 'r' : 'b'}`;
-
   /* ---------- vecteurs ---------- */
   const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], mul = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
   const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], len = a => Math.hypot(a[0], a[1], a[2]);
@@ -154,16 +131,11 @@
       const r = ik2(hip, F, B.thigh, B.shin, [-s * u0[1], s * u0[0], 0]), K = r.J, A = r.T, sd = norm(sub(A, K));
       legs[key] = {hip, K, A, toe: norm([-s * sd[1], s * sd[0], key === 'L' ? 0.05 : -0.05])};
     });
-    const longP2 = o.sexe !== 'N';
     ['R', 'L'].forEach(key => {
-      const g = legs[key], mid = add(g.hip, mul(sub(g.K, g.hip), 0.78)), outZ = key === 'L' ? 1 : -1;
-      if (longP2) {
-        cap(g.hip, g.K, 7.4, 5.6, PANTS); cap(g.K, g.A, 5.4, 4.0, PANTS);
-        cap(add(g.hip, [0, 0, outZ * 7]), add(g.K, [0, 0, outZ * 5.4]), 1.1, 1.1, '#fff', 0.6); cap(add(g.K, [0, 0, outZ * 5.2]), add(g.A, [0, 0, outZ * 3.9]), 1.0, 1.0, '#fff', 0.6);
-      }
+      const g = legs[key], mid = add(g.hip, mul(sub(g.K, g.hip), 0.78));
+      if (longP) { cap(g.hip, g.K, 7.4, 5.6, PANTS); cap(g.K, g.A, 5.4, 4.0, PANTS); }
       else { cap(g.hip, mid, 8.2, 6.8, PANTS); cap(mid, g.K, 5.6, 5.2, SKIN); cap(g.K, g.A, 5.0, 3.6, SKIN); cap(add(g.A, mul(sub(g.K, g.A), 0.34)), g.A, 4.4, 4.0, '#fff'); }
-      sph(g.K, longP2 ? 5.6 : 5.2, longP2 ? PANTS : SKIN, {no: true, bias: -0.5});
-      if (assetsReady) { out.push({t: 'shoe', A: g.A, toe: g.toe, c: side, bias: 0.3}); return; }
+      sph(g.K, longP ? 5.6 : 5.2, longP ? PANTS : SKIN, {no: true, bias: -0.5});
       const heel = sub(g.A, mul(g.toe, 4.5)), tip = add(g.A, mul(g.toe, 17));
       cap(add(heel, [0, -3.2, 0]), add(tip, [0, -3.2, 0]), 3.2, 3.0, '#fff', 0.2);
       cap(add(heel, [0, -0.6, 0]), add(tip, [0, -0.6, 0]), 4.6, 4.0, SHOE, 0.3);
@@ -173,16 +145,15 @@
     cap(P.hipL, P.hipR, 8.8, 8.8, PANTS);
     cap(up(P.R, s, P.pitch, P.twist, [0, 8, 0]), up(P.R, s, P.pitch, P.twist, [0, 40, 0]), 13.5, 15.5, '#fff', 0.2);
     cap(P.shL, P.shR, 6.2, 6.2, '#fff', 0.4);
-    cap(up(P.R, s, P.pitch, P.twist, [0, 12, P.latL * 12]), up(P.R, s, P.pitch, P.twist, [0, 42, P.latL * 13]), 2.2, 2.2, ACC[side], 0.5);
-    cap(up(P.R, s, P.pitch, P.twist, [0, 12, -P.latL * 12]), up(P.R, s, P.pitch, P.twist, [0, 42, -P.latL * 13]), 2.2, 2.2, ACC[side], 0.5);
-    out.push({t: 'logo', p: up(P.R, s, P.pitch, P.twist, [14, 31, 0]), n: [s, 0, 0], bias: 0.9, key: figKey(o, side)});
+    cap(up(P.R, s, P.pitch, P.twist, [0, 12, P.latL * 12]), up(P.R, s, P.pitch, P.twist, [0, 42, P.latL * 13]), 2.2, 2.2, TEE_B, 0.5);
+    cap(up(P.R, s, P.pitch, P.twist, [0, 12, -P.latL * 12]), up(P.R, s, P.pitch, P.twist, [0, 42, -P.latL * 13]), 2.2, 2.2, TEE_B, 0.5);
+    out.push({t: 'logo', p: up(P.R, s, P.pitch, P.twist, [14, 30, 0]), n: [s, 0, 0], bias: 0.9});
     // bras : le coude ne plie que dans le bon sens
     const arm = (key, sh) => {
       const r = ik2(sh, P.hands[key], B.upper, B.fore, P.polesH[key]), E = r.J, T = r.T, fdir = norm(sub(T, E)), wrist = sub(T, mul(fdir, 7));
       cap(sh, E, 4.8, 4.2, SKIN); cap(E, wrist, 4.2, 3.7, SKIN);
       cap(sh, add(sh, mul(norm(sub(E, sh)), 9)), 6.6, 6.0, '#fff', 0.1);
       sph(E, 4.4, SKIN, {no: true, bias: -0.5});
-      if (assetsReady) { out.push({t: 'glove', W: wrist, T, E, c: side, hand: key, bias: 0.4}); return; }
       cap(sub(T, mul(fdir, 9)), sub(T, mul(fdir, 3)), 5.6, 5.6, '#fff', 0.2);
       sph(T, B.gloveR, gc, {bias: 0.4});
       sph(add(T, add(mul(fdir, 3), [0, 4, 0])), 2.6, '#fff', {no: true, bias: 0.6});
@@ -192,7 +163,6 @@
     const neck = up(P.R, s, P.pitch, P.twist, [0, B.neckY, 0]), hd = up(P.R, s, P.pitch + P.headP, P.twist, [0, B.headY, 0]);
     const fw = norm(sub(up(P.R, s, P.pitch + P.headP, P.twist, [1, B.headY, 0]), hd)), rt = norm(sub(up(P.R, s, P.pitch + P.headP, P.twist, [0, B.headY, 1]), hd));
     cap(sub(neck, [0, 2, 0]), add(neck, [0, 4, 0]), 4.4, 4.4, SKIN_D);
-    if (assetsReady) { out.push({t: 'head', hd, fw, rt, key: figKey(o, side), sexe: o.sexe, bias: 0.2}); out.push({t: 'noop', hd}); return out; }
     sph(add(sub(hd, mul(fw, 2.5)), [0, 1.8, 0]), B.headR + 1.1, HAIR, {bias: -0.6});
     if (o.sexe === 'F') { const tail = sub(add(hd, [0, -1, 0]), mul(fw, 13)); sph(tail, 5.2, HAIR, {bias: -0.7}); cap(tail, sub(add(hd, [0, -15, 0]), mul(fw, 16)), 4.2, 3.0, HAIR, -0.7); }
     sph(hd, B.headR, SKIN);
@@ -205,7 +175,7 @@
   }
 
   /* ---------- rendu ---------- */
-  const CAM = {pos: [26, 112, 318], look: [0, 90, 0]}, view = {az: 2, el: 13, R: 330};   // caméra orbitale (glisser pour tourner)
+  const CAM = {pos: [26, 112, 318], look: [0, 90, 0]}, view = {az: 14, el: 13, R: 330};   // caméra orbitale (glisser pour tourner)
   function camera(W, H) {
     const az = rad(view.az), el = rad(view.el);
     CAM.pos = [CAM.look[0] + view.R * Math.sin(az) * Math.cos(el), CAM.look[1] + view.R * Math.sin(el), CAM.look[2] + view.R * Math.cos(az) * Math.cos(el)];
@@ -213,7 +183,7 @@
     return {f, r, u, F: Math.min(W * view.R / 215, H * view.R / 205), W, H};
   }
   function proj(c, p) { const d = sub(p, CAM.pos), z = dot(d, c.f), k = c.F / z; return {x: c.W / 2 + dot(d, c.r) * k, y: c.H * 0.5 - dot(d, c.u) * k, z, k}; }
-  const depthOf = (c, pr) => dot(sub(pr.a ? vlerp(pr.a, pr.b, 0.5) : (pr.p || pr.hd || pr.A || pr.T), CAM.pos), c.f) - (pr.bias || 0) * 3;
+  const depthOf = (c, pr) => dot(sub(pr.a ? vlerp(pr.a, pr.b, 0.5) : (pr.p || pr.hd), CAM.pos), c.f) - (pr.bias || 0) * 3;
   function drawCap(ctx, c, pr) {
     const A = proj(c, pr.a), Bp = proj(c, pr.b), ra = pr.ra * A.k, rb = pr.rb * Bp.k, ol = Math.max(1.6, c.F * 0.0036);
     const pass = (e, col) => {
@@ -243,46 +213,7 @@
     if (dot(pr.fw, toCam) > 0.05) { const m = add(hd, add(mul(pr.fw, B.headR - 0.5), [0, -5.6, 0])), A = proj(c, m), A2 = proj(c, add(m, mul(pr.rt, 2.8))), A1 = proj(c, sub(m, mul(pr.rt, 2.8)));
       ctx.strokeStyle = NAVY; ctx.lineWidth = Math.max(1.5, A.k); ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(A1.x, A1.y); ctx.quadraticCurveTo(A.x, A.y + 1.6 * A.k, A2.x, A2.y); ctx.stroke(); }
   }
-  function drawHead(ctx, c, pr) {
-    const cv = HEADS[pr.key]; if (!cv) return;
-    const hd = pr.hd, toCam = norm(sub(CAM.pos, hd)), fh = norm([pr.fw[0], 0, pr.fw[2]]), ch = norm([toCam[0], 0, toCam[2]]), cs = dot(fh, ch);
-    const A = proj(c, hd), k = A.k;
-    if (cs < -0.08) {                                                         // de dos : cheveux
-      const r = (B.headR + 2.5) * k; ctx.fillStyle = NAVY; ctx.beginPath(); ctx.arc(A.x, A.y, r + c.F * 0.0036, 0, 7); ctx.fill(); ctx.fillStyle = HAIR; ctx.beginPath(); ctx.arc(A.x, A.y, r, 0, 7); ctx.fill();
-      if (pr.sexe === 'F') { const tl = proj(c, sub(hd, mul(pr.fw, -10))); ctx.beginPath(); ctx.arc(tl.x, tl.y + 10 * k, 6 * k, 0, 7); ctx.fill(); }
-      return;
-    }
-    const hgt = 34 * k, wid = hgt * (cv.width / cv.height) * clamp(0.52 + 0.9 * Math.abs(cs), 0.55, 1);
-    const sx = proj(c, add(hd, mul(pr.fw, 10))).x - A.x, flip = sx < 0 ? -1 : 1;
-    const upS = proj(c, add(hd, mul(norm(cross(pr.rt, pr.fw)), 10))), roll = Math.atan2(upS.x - A.x, A.y - upS.y);
-    ctx.save(); ctx.translate(A.x + flip * wid * 0.07 * (1 - Math.abs(cs)), A.y - hgt * 0.04); ctx.rotate(roll); ctx.scale(flip, 1);
-    ctx.drawImage(cv, -wid / 2, -hgt / 2, wid, hgt); ctx.restore();
-  }
-  function drawGlove(ctx, c, pr) {
-    const im = IMG['glove-' + (pr.c === 'R' ? 'r' : 'b')]; if (!im) return;
-    const Ws = proj(c, pr.W), Ts = proj(c, pr.T); let dx = Ts.x - Ws.x, dy = Ts.y - Ws.y; const L = Math.hypot(dx, dy);
-    if (L < 2) { dx = 0; dy = -1; }
-    const ang = Math.atan2(dy, dx) + Math.PI / 2, s = (31 * Ts.k) / 451;
-    ctx.save(); ctx.translate(Ts.x, Ts.y); ctx.rotate(ang); ctx.scale(pr.hand === 'L' ? 1 : -1, 1); ctx.scale(s, s); ctx.drawImage(im, -170, -250); ctx.restore();
-  }
-  function drawShoe(ctx, c, pr) {
-    const im = IMG['shoe-' + (pr.c === 'R' ? 'r' : 'b')]; if (!im) return;
-    const As = proj(c, pr.A), Ts = proj(c, add(pr.A, mul(pr.toe, 10))); let tx = Ts.x - As.x, ty = Ts.y - As.y;
-    if (Math.hypot(tx, ty) < 1.5) { tx = 1; ty = 0; }
-    const s = (30 * As.k) / 420;
-    ctx.save(); ctx.translate(As.x, As.y);
-    if (tx >= 0) ctx.rotate(Math.atan2(ty, tx)); else { ctx.scale(-1, 1); ctx.rotate(Math.atan2(ty, -tx)); }
-    ctx.scale(s, s); ctx.drawImage(im, -150, -190); ctx.restore();
-  }
   function drawLogo(ctx, c, pr) {
-    const cs = dot(pr.n, norm(sub(CAM.pos, pr.p))); if (cs < 0.12) return;
-    if (assetsReady && LOGOS[pr.key]) {
-      const A = proj(c, pr.p), cv = LOGOS[pr.key], w = 15 * A.k * clamp(cs * 1.4, 0.35, 1), h = w * cv.height / cv.width * (clamp(cs * 1.4, 0.35, 1) < 1 ? 1 / clamp(cs * 1.4, 0.35, 1) : 1);
-      ctx.drawImage(cv, A.x - w / 2, A.y - h / 2, w, h); return;
-    }
-    drawLogoText(ctx, c, pr);
-  }
-  function drawLogoText(ctx, c, pr) {
     if (dot(pr.n, norm(sub(CAM.pos, pr.p))) < 0.12) return;
     const A = proj(c, pr.p); ctx.fillStyle = TEE_B; ctx.font = `italic 800 ${(6.6 * A.k).toFixed(1)}px "Barlow Condensed", sans-serif`; ctx.textAlign = 'center'; ctx.fillText("N'EPS", A.x, A.y);
   }
@@ -297,7 +228,7 @@
     const list = prims('R', poses.R, {sexe: data.R.sexe}).concat(prims('B', poses.B, {sexe: data.B.sexe}));
     list.forEach((p, i) => { p.d = depthOf(c, p); p.i = i; });
     list.sort((a, b) => (b.d - a.d) || (a.i - b.i));
-    list.forEach(p => { if (p.t === 'cap') drawCap(ctx, c, p); else if (p.t === 'sph') drawSph(ctx, c, p); else if (p.t === 'face') drawFace(ctx, c, p); else if (p.t === 'logo') drawLogo(ctx, c, p); else if (p.t === 'head') drawHead(ctx, c, p); else if (p.t === 'glove') drawGlove(ctx, c, p); else if (p.t === 'shoe') drawShoe(ctx, c, p); });
+    list.forEach(p => { if (p.t === 'cap') drawCap(ctx, c, p); else if (p.t === 'sph') drawSph(ctx, c, p); else if (p.t === 'face') drawFace(ctx, c, p); else if (p.t === 'logo') drawLogo(ctx, c, p); });
     items.forEach(it => {
       const dt = t - it.t; if (dt < 0 || dt >= 0.7) return;
       const k = dt / 0.7, A = proj(c, targetOf(it)), r = (14 + 30 * Math.sqrt(k)) * (c.F / 800), col = it.e.hd ? '#9AA3B5' : it.e.trop ? '#E65100' : COL[it.side];
@@ -328,16 +259,16 @@
     cv.addEventListener('pointerdown', e => { drag = {x: e.clientX, y: e.clientY, az: view.az, el: view.el}; try { cv.setPointerCapture(e.pointerId); } catch (x) { /* */ } });
     cv.addEventListener('pointermove', e => { if (!drag) return; view.az = clamp(drag.az + (e.clientX - drag.x) * 0.35, -85, 85); view.el = clamp(drag.el + (e.clientY - drag.y) * 0.2, 2, 55); draw(); });
     ['pointerup', 'pointercancel'].forEach(ev => cv.addEventListener(ev, () => { drag = null; }));
-    cv.addEventListener('dblclick', () => { view.az = 2; view.el = 13; draw(); });
+    cv.addEventListener('dblclick', () => { view.az = 14; view.el = 13; draw(); });
     d.querySelector('#rpPlay').onclick = () => { st.playing = !st.playing; if (st.playing && st.t >= st.tl.dur) st.t = 0; draw(); };
     d.querySelector('#rpRestart').onclick = () => { st.t = 0; st.playing = true; draw(); };
     d.querySelector('#rpSeek').addEventListener('input', e => { st.t = +e.target.value / 1000 * st.tl.dur; draw(); });
     d.querySelector('#rpSpeed').addEventListener('click', e => { const b = e.target.closest('[data-sp]'); if (!b) return; st.speed = +b.dataset.sp; d.querySelectorAll('#rpSpeed button').forEach(x => x.classList.toggle('on', x === b)); });
   }
   function open(data) {
-    loadAssets(); ensureDom();
+    ensureDom();
     const tl = build(data);
-    st = {data, tl, t: 0, playing: true, speed: 1, last: performance.now(), raf: 0}; view.az = 2; view.el = 13;
+    st = {data, tl, t: 0, playing: true, speed: 1, last: performance.now(), raf: 0}; view.az = 14; view.el = 13;
     const d = document.getElementById('replayDlg');
     d.querySelector('#rpNR').textContent = data.R.name; d.querySelector('#rpNB').textContent = data.B.name;
     d.querySelector('#rpTicks').innerHTML = tl.items.map(it => `<i style="left:${(it.t / tl.dur * 100).toFixed(2)}%;background:${COL[it.side]}"></i>`).join('');

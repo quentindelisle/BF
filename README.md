@@ -71,6 +71,3 @@ Une tablette sans leçon peut lancer un assaut libre (noms saisis). Chaque touch
 
 ## Version 3.11 — récap en 3D
 - Le récap de l'assaut est désormais **en 3D** : deux boxeurs modélisés avec un squelette articulé (genoux et coudes = charnières qui ne plient que dans le bon sens, cinématique inverse pour amener le gant ou le pied sur la cible à la bonne hauteur), vus de 3/4. Moteur 3D minimal intégré (aucune bibliothèque, fonctionne hors ligne). On peut **glisser sur l'image pour tourner la caméra** (double toucher pour revenir à la vue d'origine).
-
-## Version 3.12 — récap 3D avec les personnages de l'appli
-- Le récap 3D reprend les **illustrations de l'appli** : les **visages** (garçon, fille, non genré, au coin rouge ou bleu), les **gants** et les **chaussures** (`img/`), le **logo N'EPS** du tee, les couleurs de la tenue (pantalon marine à bandes blanches, short pour le non genré, liserés rouge ou bleu). Les images sont dessinées sur le squelette 3D (visage orienté vers l'adversaire, gant aligné sur l'avant-bras, chaussure alignée sur le pied). De dos, la tête passe en cheveux.
