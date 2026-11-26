@@ -11,7 +11,7 @@
   const easeOut = k => 1 - Math.pow(1 - k, 3), easeIn = k => k * k * k, easeIO = k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
   const LEN = {u: 60, f: 54, th: 84, sh: 84};
   const HIP_X = 108;                                  // distance de chaque boxeur au centre
-  const GUARD = {dx: 0, bob: 0, lean: 8, head: 0, a1: [62, -75], a2: [58, -82], l1: [80, 98], l2: [108, 88]};
+  const GUARD = {dx: 0, bob: 0, lean: 8, head: 0, pv: 0, a1: [62, -75], a2: [58, -82], l1: [80, 98], l2: [108, 88]};
 
   /* ---------- géométrie ---------- */
   const rot = (p, a) => [p[0] * Math.cos(rad(a)) - p[1] * Math.sin(rad(a)), p[0] * Math.sin(rad(a)) + p[1] * Math.cos(rad(a))];
@@ -37,7 +37,9 @@
     const ty = e.nh ? (arme === 'poing' ? -100 : -75) : arme === 'poing' ? (h === 'haut' ? -165 : -48) : (h === 'haut' ? -160 : h === 'milieu' ? -78 : 62);
     return {arme, coup, h, ty};
   }
-  /* pose au moment de l'impact (angles calculés par cinématique inverse vers la cible sur l'adversaire) */
+  /* pose au moment de l'impact (angles calculés par cinématique inverse vers la cible sur l'adversaire).
+     Coups de pied, d'après la planche des coups de pied : garde → armé (genou levé) → frappe (jambe d'appui tendue qui pivote,
+     buste qui se penche en arrière pour le haut, mains en garde) → retour par l'armé. */
   function impactPose(t, limb) {
     const D = 2 * HIP_X - 14, tgt = [D, t.ty], p = JSON.parse(JSON.stringify(GUARD));
     if (t.arme === 'poing') {
@@ -48,31 +50,38 @@
       p.head = -4;
     } else {
       const high = t.h === 'haut', mid = t.h === 'milieu', whip = t.coup === 'fouette';
-      p.dx = 62; p.lean = high ? -16 : mid ? -8 : 4; p.head = high ? 6 : 0;
+      p.dx = 58; p.lean = high ? -20 : mid ? -11 : 6; p.head = high ? 8 : 0;
       const sup = limb === 'l1' ? 'l2' : 'l1';
-      p[sup] = [sup === 'l1' ? 78 : 100, sup === 'l1' ? 100 : 82];
-      p.a1 = [high ? 80 : 70, -52]; p.a2 = [high ? 100 : 80, -60];
+      p[sup] = [sup === 'l1' ? 87 : 93, 90];                        // jambe d'appui quasi tendue
+      p.pv = whip ? 1 : 0.6;                                         // le pied d'appui pivote
+      p.a1 = [high ? 66 : 62, -72]; p.a2 = [high ? 100 : 74, -64];  // mains qui restent en garde
       const hipPos = [p.dx + (limb === 'l1' ? 6 : -6), 0];
-      p[limb] = ik(hipPos, [tgt[0] - 6, tgt[1] * 0.8], LEN.th, LEN.sh, whip ? -1 : 1);
+      p[limb] = ik(hipPos, [tgt[0] - 4, tgt[1] * 0.8], LEN.th, LEN.sh, whip ? -1 : 1);
+      p.ch = {limb, l: whip ? [high ? -32 : mid ? -12 : 28, 152] : [high ? -38 : mid ? -22 : 12, 96]};
     }
     return p;
   }
-  /* mélange garde → impact : le dernier segment du membre (avant-bras, tibia) peut « claquer » en fin de course */
+  /* mélange garde → (armé) → impact. Poing : le dernier segment peut claquer (crochet). Pied : chassé = jambe qui pousse,
+     fouetté = cuisse qui monte puis tibia qui claque. */
   function blend(S, limb, kind, k, ks) {
-    const out = {};
+    const out = {}, isLeg = limb[0] === 'l', kj = isLeg ? easeIO(k) : k;
     for (const key of Object.keys(GUARD)) {
-      if (Array.isArray(GUARD[key])) {
-        const snap = key === limb && (kind === 'crochet' || kind === 'fouette');
-        out[key] = GUARD[key].map((v, i) => lerp(v, S[key][i], snap && i === 1 ? ks : k));
-      } else out[key] = lerp(GUARD[key], S[key], k);
+      const g = GUARD[key];
+      if (Array.isArray(g)) {
+        if (isLeg && key === limb && S.ch) {
+          const c = S.ch.l, im = S[key];
+          if (k < 0.5) { const x = easeIO(k / 0.5); out[key] = [lerp(g[0], c[0], x), lerp(g[1], c[1], x)]; }
+          else { const x = (k - 0.5) / 0.5; out[key] = [lerp(c[0], im[0], easeOut(x)), lerp(c[1], im[1], kind === 'fouette' ? easeIn(x) : easeOut(x))]; }
+        } else if (key === limb && kind === 'crochet') out[key] = [lerp(g[0], S[key][0], k), lerp(g[1], S[key][1], ks)];
+        else out[key] = g.map((v, i) => lerp(v, S[key][i], kj));
+      } else out[key] = lerp(g, S[key], kj);
     }
     return out;
   }
-  function strikeK(u) {            // u : 0..1 sur la durée du coup ; renvoie [k, kSnap]
-    const ext = IMPACT / STRIKE;
-    if (u < ext) { const x = u / ext; return [easeOut(x), easeIn(x)]; }
+  function strikeK(u, ext, kick) {   // u : 0..1 sur la durée du coup ; renvoie [k, kSnap]
+    if (u < ext) { const x = u / ext; return kick ? [x, x] : [easeOut(x), easeIn(x)]; }
     if (u < ext + 0.08) return [1, 1];
-    const x = clamp((u - ext - 0.08) / (1 - ext - 0.08), 0, 1); return [1 - easeIO(x), 1 - easeIO(x)];
+    const x = clamp((u - ext - 0.08) / (1 - ext - 0.08), 0, 1), k = kick ? 1 - x : 1 - easeIO(x); return [k, k];
   }
 
   /* ---------- dessin d'un boxeur (axe de face = +x) ---------- */
@@ -85,8 +94,8 @@
       <ellipse cx="14" cy="0" rx="24" ry="20" fill="${col}" stroke="${NAVY}" stroke-width="4"/>
       <ellipse cx="18" cy="-8" rx="9" ry="5" fill="#fff" opacity=".45"/><path d="M6 12 Q20 20 34 8" stroke="${NAVY}" stroke-width="2.5" fill="none" opacity=".5"/></g>`;
   }
-  function shoe(f, shinAng, corner) {
-    return `<g transform="translate(${f[0].toFixed(1)} ${f[1].toFixed(1)}) rotate(${(shinAng - 90).toFixed(1)}) scale(1.12)">
+  function shoe(f, shinAng, corner, sq) {
+    return `<g transform="translate(${f[0].toFixed(1)} ${f[1].toFixed(1)}) rotate(${(shinAng - 90).toFixed(1)}) scale(${(1.12 * (sq || 1)).toFixed(3)} 1.12)">
       <path d="M-16 -16 L-16 6 Q-16 14 -8 14 L30 14 Q42 14 40 4 Q36 -6 20 -9 L-2 -9 L-5 -16 Z" fill="${SHOE}" stroke="${NAVY}" stroke-width="4" stroke-linejoin="round"/>
       <path d="M-16 6 L-16 14 L36 14 L38 8 Z" fill="#fff" stroke="${NAVY}" stroke-width="2"/><path d="M-8 -2 L22 -2 L30 6" stroke="${corner}" stroke-width="5" fill="none" stroke-linecap="round"/>
       <path d="M-2 -16 L-2 -9 M10 -9 L12 -3" stroke="#fff" stroke-width="2" fill="none"/></g>`;
@@ -104,10 +113,26 @@
     const leg = (l, hp) => { const k = add(hp, dir(l[0]).map(v => v * LEN.th)), f = add(k, dir(l[1]).map(v => v * LEN.sh)); return {k, f, sh: l[1], th: l[0], hp}; };
     const L1 = leg(pose.l1, add(hip, [6, 0])), L2 = leg(pose.l2, add(hip, [-6, 0]));
     const longP = o.sexe === 'F';
-    const legSvg = L => {
-      if (longP) return path([L.hp, L.k, L.f], 30, PANTS) + fillOnly([L.hp, add(L.hp, dir(L.th).map(v => v * 6))], 0, PANTS) + shoe(L.f, L.sh, gc);
-      const mid = add(L.hp, dir(L.th).map(v => v * LEN.th * 0.78));
-      return path([L.k, L.f], 19, SKIN) + path([L.hp, mid], 33, PANTS) + `<path d="M${add(L.f, dir(L.sh).map(v => v * -16)).map(v => v.toFixed(1)).join(' ')}L${add(L.f, dir(L.sh).map(v => v * -34)).map(v => v.toFixed(1)).join(' ')}" stroke="#fff" stroke-width="15" stroke-linecap="round"/>` + shoe(L.f, L.sh, gc);
+    const f1 = v => v.toFixed(1);
+    const taper = (p, q, w0, w1, col) => { const dx = q[0] - p[0], dy = q[1] - p[1], L0 = Math.hypot(dx, dy) || 1, nx = -dy / L0, ny = dx / L0;
+      const P = [[p[0] + nx * w0 / 2, p[1] + ny * w0 / 2], [q[0] + nx * w1 / 2, q[1] + ny * w1 / 2], [q[0] - nx * w1 / 2, q[1] - ny * w1 / 2], [p[0] - nx * w0 / 2, p[1] - ny * w0 / 2]];
+      return `<path d="M${P.map(v => f1(v[0]) + ' ' + f1(v[1])).join('L')}Z" fill="${col}" stroke="${NAVY}" stroke-width="4.5" stroke-linejoin="round"/>`; };
+    const knee = (k, rr, col) => `<circle cx="${f1(k[0])}" cy="${f1(k[1])}" r="${rr}" fill="${col}"/>`;
+    const along = (p, q, a0, a1) => [[lerp(p[0], q[0], a0), lerp(p[1], q[1], a0)], [lerp(p[0], q[0], a1), lerp(p[1], q[1], a1)]];
+    const legSvg = (L, name) => {
+      const support = pose.kl && name !== pose.kl && pose.kk > 0.12, sq = support ? 1 - 0.45 * pose.pv * Math.min(1, pose.kk * 1.5) : 1;
+      let s;
+      if (longP) {
+        s = taper(L.hp, L.k, 40, 31, PANTS) + taper(L.k, L.f, 31, 23, PANTS) + knee(L.k, 12, PANTS);
+        const st1 = along(L.hp, L.k, 0.1, 0.92), st2 = along(L.k, L.f, 0.08, 0.95);
+        s += `<path d="M${f1(st1[0][0])} ${f1(st1[0][1])}L${f1(st1[1][0])} ${f1(st1[1][1])}M${f1(st2[0][0])} ${f1(st2[0][1])}L${f1(st2[1][0])} ${f1(st2[1][1])}" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".95"/>`;
+      } else {
+        const mid = add(L.hp, dir(L.th).map(v => v * LEN.th * 0.8)), sock = along(L.k, L.f, 0.62, 0.98);
+        s = taper(L.k, L.f, 26, 18, SKIN) + knee(L.k, 9, SKIN) + taper(L.hp, mid, 44, 36, PANTS) +
+          `<path d="M${f1(sock[0][0])} ${f1(sock[0][1])}L${f1(sock[1][0])} ${f1(sock[1][1])}" stroke="#fff" stroke-width="20" stroke-linecap="round"/>`;
+        const st = along(L.hp, mid, 0.08, 0.9); s += `<path d="M${f1(st[0][0])} ${f1(st[0][1])}L${f1(st[1][0])} ${f1(st[1][1])}" stroke="#fff" stroke-width="3" stroke-linecap="round"/>`;
+      }
+      return s + shoe(L.f, L.sh, gc, sq);
     };
     const armSvg = (A, sh) => { const ua = Math.atan2(A.e[1] - sh[1], A.e[0] - sh[0]) * 180 / Math.PI, sl = add(sh, dir(ua).map(v => v * 20));
       return path([sh, A.e, A.h], 22, SKIN) + `<path d="M${sh[0].toFixed(1)} ${sh[1].toFixed(1)}L${sl[0].toFixed(1)} ${sl[1].toFixed(1)}" stroke="#fff" stroke-width="27" stroke-linecap="round"/>` + glove(A.h, A.ang, gc); };
@@ -128,7 +153,8 @@
         <path d="M33 -148 L40 -142 L33 -140" stroke="${NAVY}" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         <path d="M20 -134 Q28 -129 34 -135" stroke="${NAVY}" stroke-width="2.8" fill="none" stroke-linecap="round"/><ellipse cx="22" cy="-141" rx="5" ry="3" fill="#F08A6A" opacity=".5"/>
       </g></g></g>`;
-    return legSvg(L2) + legSvg(L1) + armSvg(A2, sh2) + torso + armSvg(A1, sh1);
+    const kick = pose.kl && pose.kk > 0.12 ? pose.kl : null, lg = {l1: legSvg(L1, 'l1'), l2: legSvg(L2, 'l2')};
+    return (kick === 'l1' ? lg.l2 : kick === 'l2' ? lg.l1 : lg.l2 + lg.l1) + armSvg(A2, sh2) + torso + (kick ? lg[kick] : '') + armSvg(A1, sh1);
   }
 
   /* ---------- chronologie ---------- */
@@ -142,7 +168,7 @@
       const tech = techOf(e), n = cnt[e.t]++, lead = e.main ? e.main === 'g' : n % 2 === 0;
       const limb = tech.arme === 'poing' ? (lead ? 'a1' : 'a2') : (tech.coup === 'chasse' ? (e.main ? (lead ? 'l1' : 'l2') : 'l1') : (e.main ? (lead ? 'l1' : 'l2') : 'l2'));
       const sc = {R: scoreOf(evs.slice(0, i + 1), 'R'), B: scoreOf(evs.slice(0, i + 1), 'B')};
-      items.push({t: tr, side: e.t, e, tech, limb, S: impactPose(tech, limb), sc, pts: ptsOf(e)});
+      items.push({t: tr, side: e.t, e, tech, limb, S: impactPose(tech, limb), sc, pts: ptsOf(e), dur: tech.arme === 'pied' ? 0.92 : STRIKE, imp: tech.arme === 'pied' ? 0.46 : IMPACT});
     });
     return {items, dur: (items.length ? tr : LEAD) + TAIL, skipped: Math.round(skipped), evs};
   }
@@ -196,10 +222,10 @@
   function poseAt(side, t) {
     const items = st.tl.items;
     let cur = null;
-    for (let i = items.length - 1; i >= 0; i--) { const it = items[i]; if (it.side === side && it.t - IMPACT <= t && t < it.t - IMPACT + STRIKE) { cur = it; break; } }
+    for (let i = items.length - 1; i >= 0; i--) { const it = items[i]; if (it.side === side && it.t - it.imp <= t && t < it.t - it.imp + it.dur) { cur = it; break; } }
     const idle = Math.sin(t * 5 + (side === 'B' ? 1.7 : 0)) * 3, shuffle = Math.sin(t * 2.3 + (side === 'B' ? 2 : 0)) * 4;
     let p;
-    if (cur) { const u = (t - (cur.t - IMPACT)) / STRIKE, [k, ks] = strikeK(u); p = blend(cur.S, cur.limb, cur.tech.coup, k, ks); p.dx += shuffle * (1 - k); p.bob += idle * (1 - k); }
+    if (cur) { const u = (t - (cur.t - cur.imp)) / cur.dur, [k, ks] = strikeK(u, cur.imp / cur.dur, cur.limb[0] === 'l'); p = blend(cur.S, cur.limb, cur.tech.coup, k, ks); if (cur.limb[0] === 'l') { p.kl = cur.limb; p.kk = k; } p.dx += shuffle * (1 - k); p.bob += idle * (1 - k); }
     else { p = JSON.parse(JSON.stringify(GUARD)); p.bob = idle; p.dx = shuffle; p.lean += Math.sin(t * 5) * 1.2; }
     // coup reçu : recul
     const opp = side === 'R' ? 'B' : 'R';
