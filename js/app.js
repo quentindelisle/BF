@@ -4,7 +4,7 @@
    parcours prof en 4 étapes, échanges par QR codes, paramètres du cycle, piliers.
    ===================================================================== */
 'use strict';
-const APP_VERSION = '3.9.1';
+const APP_VERSION = '3.10.2';
 const ROOT_KEY = 'observbf.v3';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -743,7 +743,7 @@ function profClassements() {
     return `<div class="card gzone colored" style="${gStyle(g)};margin-bottom:14px"><div class="row between"><h3>${gDot(g)}${esc(g.name)}</h3><span class="pill">${list.filter(a => a.status === 'done').length} / ${list.length} assauts</span></div>
       ${rankingTable(n, g)}
       <details style="margin-top:8px"><summary style="font-weight:800;cursor:pointer">Assauts</summary><div class="table-wrap"><table><tbody>${list.map((a, i) => `<tr><td>${i + 1}</td><td class="${a.winner === 'R' ? 'wR' : ''}">${esc(nameOf(a.red))}</td><td class="${a.winner === 'B' ? 'wB' : ''}">${esc(nameOf(a.blue))}</td>
-        <td class="n">${a.status === 'done' ? `<b>${a.scoreR} – ${a.scoreB}</b>` : '<span class="status">à faire</span>'}</td><td class="n">${a.status === 'done' ? `<button class="btn small" data-action="replay" data-id="${a.id}">Rejouer</button>` : ''}</td></tr>`).join('')}</tbody></table></div></details></div>`; }).join('') + '</div>';
+        <td class="n">${a.status === 'done' ? `<b>${a.scoreR} – ${a.scoreB}</b>` : '<span class="status">à faire</span>'}</td><td class="n">${a.status === 'done' ? `${(a.events || []).length ? `<button class="btn small" data-action="replayView" data-id="${a.id}">🎬 Revoir</button> ` : ''}<button class="btn small" data-action="replay" data-id="${a.id}">Refaire</button>` : ''}</td></tr>`).join('')}</tbody></table></div></details></div>`; }).join('') + '</div>';
 }
 function profStats() {
   const n = UI.statN || 0, scope = n ? [n] : Array.from({length: SET().nbLessons}, (_, i) => i + 1);
@@ -1200,6 +1200,7 @@ const A = {
     L[k] = !c[k]; save(); render();
   },
   replay: async d => { if (!(await confirmBox('Rejouer cet assaut ?', 'Son résultat sera effacé et il repassera « à faire ».', 'Rejouer', true))) return; const a = S.assaults.find(x => x.id === d.id); Object.assign(a, {status: 'todo', events: [], scoreR: null, scoreB: null, winner: null, obs: null}); save(); render(); },
+  replayView: d => { const a = S.assaults.find(x => x.id === d.id); if (a) Replay.open(Replay.fromAssault(a)); },
   exportXlsx: () => exportXlsx(),
   backup: () => shareJSON({...ROOT, live: null}, `ObservBF_sauvegarde_${new Date().toISOString().slice(0, 10)}.json`),
   setPin: () => { const v = $('#newPin').value; if (!/^\d{4}$/.test(v)) return toast('Le code doit faire 4 chiffres'); ROOT.pin = v; save(); toast('✓ Code changé'); $('#newPin').value = ''; },
@@ -1690,9 +1691,10 @@ function openResult() {
     <div class="res-head ${r.winner}"><small>${r.abandon ? 'Abandon de ' + esc(l[r.abandon].name) : 'Résultat de l\'observation'}</small><h2>${r.winner === 'N' ? 'Match nul' : 'Victoire de ' + esc(l[r.winner].name)}${r.abandon ? ' par abandon' : ''}</h2>
       <div class="res-score"><span>${r.sR}</span><span style="font-size:30px;opacity:.7">–</span><span>${r.sB}</span></div></div>
     <div class="res-cols">${col('R')}${col('B')}</div>
-    <div class="res-foot" id="resFoot"><span class="note">L'observation ne peut plus être corrigée une fois le bilan affiché.</span><button class="btn go" id="resOk">✓ Valider le résultat</button></div></div>`;
+    <div class="res-foot" id="resFoot"><span class="note">L'observation ne peut plus être corrigée une fois le bilan affiché.</span><div class="btn-row"><button class="btn" id="resReplay">🎬 Revoir l'assaut</button><button class="btn go" id="resOk">✓ Valider le résultat</button></div></div></div>`;
   paintHeat($('#rhR'), l.events, 'R'); paintHeat($('#rhB'), l.events, 'B');
   $('#resOk').onclick = commitResult;
+  $('#resReplay').onclick = () => Replay.open(Replay.fromLive(LV()));
   if (!$('#resultDlg').open) $('#resultDlg').showModal();
 }
 $('#resultBody').addEventListener('click', e => {
@@ -1703,7 +1705,7 @@ $('#resultBody').addEventListener('click', e => {
 });
 $('#resultDlg').addEventListener('cancel', e => e.preventDefault());
 function commitResult() {
-  const l = LV(), r = result();
+  const l = LV(), r = result(), replayData = Replay.fromLive(l);
   const data = {status: 'done', red: l.R.id, blue: l.B.id, jc: l.jc, jp: l.jp, scoreR: r.sR, scoreB: r.sB, winner: r.winner, ab: l.abandon || null, events: l.events, obs: l.pil ? l.obs : null, pil: l.pil?.id || '',
     repSec: l.clock.repSec, reprises: l.clock.R, rp: l.clock.phase === 'ready' ? Math.max(1, l.clock.rep - 1) : l.clock.rep, startedAt: l.startedAt, endedAt: Date.now(), names: {R: l.R.name, B: l.B.name}, d: ROOT.deviceId};
   const a = l.aid && S.assaults.find(x => x.id === l.aid);
@@ -1713,9 +1715,10 @@ function commitResult() {
   if (!free && g) { ensureSchedule(l.n, g); next = todoList(l.n, g.id)[0]; }
   let left = +SET().autoNext || 10;
   const label = free ? 'Nouvel assaut libre' : next ? `Assaut suivant : <span class="wR">${esc(nameOf(next.red))}</span> – <span class="wB">${esc(nameOf(next.blue))}</span>` : 'Tous les assauts du groupe sont faits';
-  $('#resFoot').innerHTML = `<span>${label}</span><span class="countdown" id="cd">dans ${left} s</span><div class="btn-row"><button class="btn" id="resStay">Rester ici</button><button class="btn go" id="resNext">Continuer</button></div>`;
+  $('#resFoot').innerHTML = `<span>${label}</span><span class="countdown" id="cd">dans ${left} s</span><div class="btn-row"><button class="btn" id="resReplay2">🎬 Revoir l'assaut</button><button class="btn" id="resStay">Rester ici</button><button class="btn go" id="resNext">Continuer</button></div>`;
   const goNext = () => { clearInterval(autoT); $('#resultDlg').close(); closeFight(); openPrep(free); };
   $('#resNext').onclick = goNext;
+  $('#resReplay2').onclick = () => { clearInterval(autoT); $('#cd').textContent = ''; Replay.open(replayData); };
   $('#resStay').onclick = () => { clearInterval(autoT); $('#cd').textContent = ''; $('#resStay').hidden = true; };
   clearInterval(autoT);
   autoT = setInterval(() => { left--; const cd = $('#cd'); if (cd) cd.textContent = `dans ${left} s`; if (left <= 0) goNext(); }, 1000);

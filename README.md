@@ -64,3 +64,7 @@ Une tablette sans leçon peut lancer un assaut libre (noms saisis). Chaque touch
 ## Version 3.9 — modes de saisie choisis avant chaque assaut, geste minimal 4 cm
 - **Avant chaque assaut**, chaque observateur choisit son **mode de saisie** — *Nb de doigts = Hauteur* (départ sur le gant / la chaussure, comme avant) · *Nb de doigts = Arme* (1 doigt = poing, 2 doigts = pied, départ n'importe où ; la hauteur vient de l'inclinaison du tracé : monte = haut, à plat = médian, descend = bas) · *Adapté (interface sonore)* (voix + lexique, un seul observateur) — et son **niveau** : Débutant, Débrouillé, Complet ou Expert (Adapté et Expert : un seul observateur par tablette).
 - **Plus de touche par simple appui** : un geste de moins de **4 cm** (réglable) n'est jamais compté. Le bouton « Étalonner » règle la taille de 4 cm sur chaque tablette (par défaut déduite du modèle d'iPad).
+
+## Version 3.10 — récap animé de l'assaut
+- En fin d'assaut (bilan) et dans Résultats → Classements → Assauts : **🎬 Revoir l'assaut**. Deux boxeurs en vue de 3/4, dessinés dans l'esthétique de l'appli, rejouent les coups saisis **au moment où ils ont été saisis**, à la bonne hauteur et avec la bonne technique (direct, crochet, chassé, fouetté ; haut, médian, bas), avec impact coloré, étiquette et score en direct.
+- Vitesses **×1, ×1,5, ×2**, pause, retour au début, curseur de navigation avec repères des coups. Les temps morts de plus de 5 s sont raccourcis.
