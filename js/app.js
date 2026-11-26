@@ -4,7 +4,7 @@
    parcours prof en 4 étapes, échanges par QR codes, paramètres du cycle, piliers.
    ===================================================================== */
 'use strict';
-const APP_VERSION = '3.8.0';
+const APP_VERSION = '3.9.1';
 const ROOT_KEY = 'observbf.v3';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -57,7 +57,7 @@ const DEFAULT_PILIERS = [
   {id:'def', n:'Défendre et riposter', cr:['Pare ou esquive les attaques', 'Riposte après une parade', 'Garde la distance de sécurité']},
   {id:'arb', n:'Arbitrer et juger', cr:['Annonces claires : en garde, allez, stop', 'Sanctionne les frappes trop fortes', 'Compte les touches sans se tromper']}];
 const DEF_BAREME = {poing:{tete:1, tronc:1, bas:1, garde:0, nh:1}, pied:{tete:4, tronc:2, bas:1, garde:0, nh:2}};
-const DEF_SET = {penHD:0, voix:false, jmode:'lecon', nbLessons:6, current:1, totalMin:40, reprises:2, recupSec:30, transitionSec:60, mode:'auto', manualSec:60, bonusOn:true, bonusPts:1, bonusArmes:['direct','crochet','chasse','fouette'],
+const DEF_SET = {minCm:4, penHD:0, voix:false, jmode:'lecon', nbLessons:6, current:1, totalMin:40, reprises:2, recupSec:30, transitionSec:60, mode:'auto', manualSec:60, bonusOn:true, bonusPts:1, bonusArmes:['direct','crochet','chasse','fouette'],
   bareme:clone(DEF_BAREME), penalite:1, bonusEnch:0, seuil:0.18, ptsV:3, ptsN:2, ptsD:1, autoNext:10, bv:2};
 
 /* ---------------- État ---------------- */
@@ -104,7 +104,27 @@ const saveSoon = () => { clearTimeout(saveT); saveT = setTimeout(save, 500); };
 loadRoot();
 const isProf = () => ROOT.role === 'prof';
 /* Un seul observateur sur la tablette : mode expert ou mode Inclusion */
-const isSingle = l => l.cfg.jug === 'expert' || !!l.inc;
+const isSingle = l => !!l.single;
+const MD = {hauteur: 'Mode : nb de doigts = Hauteur', arme: 'Mode : nb de doigts = Arme', adapte: 'Mode : Adapté (interface sonore)'};
+const MD_COURT = {hauteur: 'doigts = hauteur', arme: 'doigts = arme', adapte: 'adapté'};
+const JUG_C = {debutant: 'Débutant', debrouille: 'Débrouillé', complet: 'Complet', expert: 'Expert'};
+/* Déplacement minimal d'un geste (4 cm par défaut) : en dessous, rien n'est compté. px par cm : étalonnable par tablette. */
+function autoPxCm() {
+  const ua = navigator.userAgent || '', ipad = /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  if (!ipad) return 96 / 2.54;
+  const mini = Math.min(screen.width, screen.height) <= 744 && Math.max(screen.width, screen.height) <= 1133;
+  return (mini ? 163 : 132) / 2.54;
+}
+const pxPerCm = () => ROOT.pxCm || autoPxCm();
+const minCm = () => +SET().minCm || 4;
+const minTravelPx = () => minCm() * pxPerCm();
+/* Hauteur donnée par l'inclinaison du tracé (mode « nb de doigts = arme ») : monte = haut, à plat = médian, descend = bas */
+const ANG = {poing: 12, haut: 20, bas: -20};
+function hFromAngle(arme, o) {
+  const th = Math.atan2(-(o.cy - o.sy), Math.abs(o.cx - o.sx)) * 180 / Math.PI;
+  if (arme === 'poing') return th >= ANG.poing ? 'haut' : 'bas';
+  return th >= ANG.haut ? 'haut' : th <= ANG.bas ? 'bas' : 'milieu';
+}
 const INC_N = {debutant: ['N1', 'Touche'], debrouille: ['N2', 'Poing / pied'], complet: ['N3', 'Poing / pied + hauteur']};
 const SET = () => S.settings;
 
@@ -562,7 +582,7 @@ function profCycle() {
         ${f('Poing : direct, crochet', bv('poing', 'all', s.bareme.poing.tete))}${f('Trop fort (−)', num('penalite', 0, 5))}${f('Hors distance (−)', num('penHD', 0, 5))}
         ${f('Pied · ligne basse (jambes)', bv('pied', 'bas', s.bareme.pied.bas))}${f('Pied · ligne médiane (flancs)', bv('pied', 'tronc', s.bareme.pied.tronc))}${f('Pied · ligne haute (visage)', bv('pied', 'tete', s.bareme.pied.tete))}</div>
       <div class="cgrid" style="margin-top:6px">${f('Points V / N / D', `<span class="row" style="gap:3px;flex-wrap:nowrap">${num('ptsV', 0, 10)}${num('ptsN', 0, 10)}${num('ptsD', 0, 10)}</span>`)}
-        <label style="grid-column:span 2">Geste droit / courbe : ${Math.round(s.seuil * 100)} %<input type="range" min="0.08" max="0.40" step="0.01" data-field="set" data-k="seuil" value="${s.seuil}"></label></div></div></div>
+        <label>Geste minimal (cm)${num('minCm', 2, 8, 0.5)}</label><label>Droit / courbe : ${Math.round(s.seuil * 100)} %<input type="range" min="0.08" max="0.40" step="0.01" data-field="set" data-k="seuil" value="${s.seuil}"></label></div></div></div>
     <div class="card wide"><h2>Les leçons</h2>
       <div class="lrow lhead"><span title="Numéro de la leçon">N°</span><span title="Nom de la leçon, affiché sur les tablettes élèves">Titre de la leçon</span><span title="Premier pilier observé par les juges pendant les assauts">Pilier observé n° 1</span><span title="Deuxième pilier facultatif (jusqu'à deux piliers par leçon)">Pilier n° 2 (facultatif)</span><span title="Cliquez pour autoriser (orange) ou interdire chaque élément dans cette leçon">Autorisé dans la saisie</span><span title="Durée totale du tournoi de la leçon, en minutes">Durée leçon</span><span title="Nombre de reprises par assaut">Reprises</span><span title="Aperçu calculé pour le plus grand groupe">Aperçu du plus grand groupe</span></div>
       <p class="note" style="margin:0 0 2px">Cases d'autorisation : 🥊 poings · 🦶 pieds · 🔗 enchaînements · ★ arme bonus (orange = autorisé). Le niveau de jugement se règle dans <b>Leçon du jour → 🎚 Niveaux de jugement</b>.</p>${rows}</div></div>`;
@@ -773,9 +793,23 @@ function openPrep(free) {
   go('prep');
 }
 const opts = (sel, pool, empty) => `<option value="">${empty}</option>` + pool.map(id => `<option value="${id}" ${id === sel ? 'selected' : ''}>${esc(nameOf(id))}</option>`).join('');
+/* Mode de saisie et niveau, choisis par chaque observateur avant l'assaut */
+function prepObs(P) {
+  const active = P.n === 2 ? ['R', 'B'] : [P.xs];
+  const nm = s => esc(nameOf(s === 'R' ? P.red : P.blue) || P.guest[s].name || (s === 'R' ? 'Rouge' : 'Bleu'));
+  const row = s => `<div class="obs-row"><b class="${s === 'R' ? 'wR' : 'wB'}">${s === 'R' ? '🔴' : '🔵'} ${nm(s)}</b>
+    <select data-field="prepSel" data-k="md" data-s="${s}" aria-label="Mode de saisie">${Object.entries(MD).map(([k, t]) => `<option value="${k}" ${P.md[s] === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
+    <select data-field="prepSel" data-k="lv" data-s="${s}" aria-label="Niveau">${Object.entries(JUG_C).map(([k, t]) => `<option value="${k}" ${P.lv[s] === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>`;
+  return `<div class="incl-bar"><span class="lbl">Observateurs sur la tablette</span><div class="seg small"><button class="${P.n === 2 ? 'on' : ''}" data-action="prepN" data-v="2">2 observateurs</button><button class="${P.n === 1 ? 'on' : ''}" data-action="prepN" data-v="1">1 seul</button></div>
+      ${P.n === 1 ? `<span class="lbl">Je regarde</span><div class="seg small"><button class="${P.xs === 'R' ? 'on' : ''}" data-action="prepXs" data-v="R">🔴 ${nm('R')}</button><button class="${P.xs === 'B' ? 'on' : ''}" data-action="prepXs" data-v="B">🔵 ${nm('B')}</button></div>` : ''}
+      <button class="btn small ghost" data-action="calibrer" title="Régler la taille de 4 cm sur cette tablette">📏 Étalonner ${minCm()} cm</button></div>
+    ${active.map(row).join('')}
+    <p class="note" style="margin:0">Adapté${SET().voix ? '' : ' (voix désactivée)'} et Expert : 1 observateur par tablette · un geste de moins de ${minCm()} cm n'est jamais compté.</p>`;
+}
 function viewPrep() {
   const P = UI.P, n = curLesson(), g = groupById(P.gid), pil = lessonPil(n);
-  P.mode = P.mode || ROOT.obsMode || 'classique'; P.xs = P.xs || 'R'; P.nv = P.nv || ROOT.obsNv || 'complet';
+  P.n = P.n || ROOT.obsN || 2; P.xs = P.xs || 'R'; P.md = P.md || {...(ROOT.obsMd || {R: 'hauteur', B: 'hauteur'})};
+  if (!P.lvTouched) { P.lv = levelsFor(n, [P.jp[0] || '', P.jp[1] || '']); if (P.lv.R === 'expert' || P.lv.B === 'expert') P.n = 1; }
   setTop(P.free ? 'Assaut libre' : (g ? g.name : 'Assauts'), lessonLabel(n), `<button class="btn small" data-action="home">⌂ Accueil</button>`);
   if (P.finished) return `<div class="card strong" style="${gStyle(g)}"><h2>🏁 Tous les assauts du ${esc(g.name)} sont terminés</h2><p class="note">Classement de la leçon. Pensez à envoyer les résultats au prof.</p>${rankingTable(n, g)}
     <div class="btn-row" style="margin-top:12px">${isProf() ? '' : '<button class="btn green" data-action="go" data-view="send">📤 Envoyer les résultats</button>'}<button class="btn" data-action="home">⌂ Accueil</button></div></div>`;
@@ -800,11 +834,7 @@ function viewPrep() {
         <label class="wB">📋 Coach bleu (juge de coin)<select data-field="prep" data-k="jp" data-i="1">${opts(P.jp[1] || '', jPool, '— aucun —')}</select></label></div>
       ${rest.length ? `<p class="note" style="margin:0">💤 Repos : <b>${rest.map(nameOf).map(esc).join(', ')}</b></p>` : ''}
       <p class="note" style="margin:0">${(() => { const lv = levelsFor(n, [P.jp[0] || '', P.jp[1] || '']); return lv.R === 'expert' ? 'Niveau de jugement : <b>Expert</b> · un seul observateur par tablette' : `Niveau de jugement : <span class="wR">coach rouge <b>${JUG[lv.R]}</b></span> · <span class="wB">coach bleu <b>${JUG[lv.B]}</b></span>`; })()}${lessonCfg(n).ench ? ' · 🔗 enchaînements' : ''}</p>
-      ${lessonCfg(n).jug === 'expert' ? '' : `<div class="incl-bar"><span class="lbl">Observateur</span>
-        <div class="seg small"><button class="${P.mode === 'inclusion' ? '' : 'on'}" data-action="prepMode" data-v="classique">Mode classique · 2 coachs</button><button class="${P.mode === 'inclusion' ? 'on' : ''}" data-action="prepMode" data-v="inclusion">Mode Inclusion · 1 observateur</button></div>
-        ${P.mode === 'inclusion' ? `<span class="lbl">Je regarde</span><div class="seg small"><button class="${P.xs === 'R' ? 'on' : ''}" data-action="prepXs" data-v="R">🔴 ${esc(nameOf(P.red) || (P.guest.R.name || 'Rouge'))}</button><button class="${P.xs === 'B' ? 'on' : ''}" data-action="prepXs" data-v="B">🔵 ${esc(nameOf(P.blue) || (P.guest.B.name || 'Bleu'))}</button></div>
-        <span class="lbl">Niveau</span><div class="seg small">${Object.entries(INC_N).map(([k, [n1, t]]) => `<button class="${P.nv === k ? 'on' : ''}" data-action="prepNv" data-v="${k}" title="${t}">${n1} · ${t}</button>`).join('')}</div>
-        <span class="note">${SET().voix ? '🎤 saisie vocale disponible' : 'saisie tactile (voix désactivée par l\'enseignant)'}</span>` : ''}</div>`}
+      ${prepObs(P)}
       <div class="row between"><button class="btn ghost" data-action="prepSkip" ${P.free ? 'hidden' : ''}>Passer cet assaut</button><button class="btn go" data-action="prepStart">🥊 Commencer l'assaut</button></div></div>
     <aside>${pil ? `<div class="pil-card"><b>🏛 Pilier : ${esc(pil.n)}</b><ul>${pil.cr.map(c => `<li>${esc(c)}</li>`).join('')}</ul><div class="note">Chaque coach l'observe chez son tireur.</div></div>` : ''}
       ${next.length ? `<div class="card" style="margin-top:14px"><h3>À suivre</h3><ol class="next-list">${next.map(a => `<li><span class="wR">${esc(nameOf(a.red))}</span> – <span class="wB">${esc(nameOf(a.blue))}</span><div class="note">⚖️ ${esc(nameOf(a.jc) || '—')} · 📋 ${(a.jp || []).filter(Boolean).map(nameOf).map(esc).join(' / ') || '—'}</div></li>`).join('')}</ol></div>` : ''}
@@ -830,10 +860,11 @@ function startAssault() {
   }
   const t = timing(n, P.free ? 0 : presentMembers(n, g).length);
   const fighter = (id, side) => { const s = stu(id); return {id, name: fullName(s) || (P.guest[side].name || '').trim() || (side === 'R' ? 'Rouge' : 'Bleu'), sexe: s ? s.sexe : P.guest[side].sexe}; };
-  const incOn = P.mode === 'inclusion' && lessonCfg(n).jug !== 'expert';
+  const single = P.n === 1, md = {R: P.md.R, B: P.md.B};
+  ROOT.obsN = P.n; ROOT.obsMd = md;
   ROOT.live = {cid: S.id, n, aid: P.aid, gid: P.gid, free: P.free, R: fighter(P.red, 'R'), B: fighter(P.blue, 'B'), jc: P.jc, jp: [P.jp[0] || '', P.jp[1] || ''],
     events: [], ench: {R: null, B: null}, bonus: {R: null, B: null}, bonusPick: {R: 0, B: 0}, pil: lessonPil(n), obs: {R: [], B: []},
-    cfg: lessonCfg(n), lv: incOn ? {R: P.nv, B: P.nv} : levelsFor(n, [P.jp[0] || '', P.jp[1] || '']), inc: incOn ? {xs: P.xs, nv: P.nv} : null, xs: incOn ? P.xs : 'R', chain: {R: null, B: null},
+    cfg: lessonCfg(n), lv: {R: P.lv.R, B: P.lv.B}, md, single, inc: single && md[P.xs] === 'adapte' ? {xs: P.xs} : null, xs: single ? P.xs : 'R', xsDone: true, chain: {R: null, B: null},
     clock: {phase: 'ready', rep: 1, R: t.R, repSec: t.rep, recSec: t.rec, remaining: t.rep * 1000, endAt: null}, startedAt: Date.now()};
   save(); openFight();
 }
@@ -863,7 +894,7 @@ function afterReceive() {
 /* =====================================================================
    PAQUETS QR
    ===================================================================== */
-const SET_KEYS = ['penHD', 'voix', 'jmode', 'bareme', 'penalite', 'bonusEnch', 'seuil', 'ptsV', 'ptsN', 'ptsD', 'autoNext', 'recupSec', 'transitionSec', 'mode', 'manualSec', 'bonusOn', 'bonusPts', 'bonusArmes', 'totalMin', 'reprises'];
+const SET_KEYS = ['minCm', 'penHD', 'voix', 'jmode', 'bareme', 'penalite', 'bonusEnch', 'seuil', 'ptsV', 'ptsN', 'ptsD', 'autoNext', 'recupSec', 'transitionSec', 'mode', 'manualSec', 'bonusOn', 'bonusPts', 'bonusArmes', 'totalMin', 'reprises'];
 function lessonPacket(n) {
   S.groups.forEach(g => ensureSchedule(n, g));
   const L = lesson(n), ls = LS(n), cfg = lessonCfg(n), set = {}; SET_KEYS.forEach(k => set[k] = SET()[k]);
@@ -1182,9 +1213,23 @@ const A = {
   prepSex: d => { const P = UI.P, s = stu(d.side === 'R' ? P.red : P.blue); if (s) { s.sexe = d.v; save(); } else P.guest[d.side].sexe = d.v; render(); },
   prepSkip: () => { const P = UI.P, a = S.assaults.find(x => x.id === P.aid); a.order = lessonAssaults(a.n, a.gid).reduce((m, x) => Math.max(m, x.order || 0), 0) + 1; save(); openPrep(false); toast('Assaut repoussé à la fin'); },
   prepStart: () => startAssault(),
-  prepMode: d => { UI.P.mode = d.v; ROOT.obsMode = d.v; save(); render(); },
+  prepN: d => {
+    const P = UI.P; P.n = +d.v;
+    if (P.n === 2) { let ch = false; ['R', 'B'].forEach(s => { if (P.md[s] === 'adapte') { P.md[s] = 'hauteur'; ch = true; } if (P.lv[s] === 'expert') { P.lv[s] = 'complet'; ch = true; } }); P.lvTouched = true; if (ch) toast('Adapté et Expert : un seul observateur par tablette. Réglages ramenés à Nb de doigts = Hauteur / Complet.'); }
+    render();
+  },
   prepXs: d => { UI.P.xs = d.v; render(); },
-  prepNv: d => { UI.P.nv = d.v; ROOT.obsNv = d.v; save(); render(); },
+  prepMd: d => { const P = UI.P; P.md[d.s] = d.v; if (d.v === 'adapte') { P.n = 1; P.xs = d.s; } ROOT.obsMd = {...P.md}; save(); render(); },
+  prepLv: d => { const P = UI.P; P.lv[d.s] = d.v; P.lvTouched = true; if (d.v === 'expert') { P.n = 1; P.xs = d.s; } render(); },
+  calibrer: () => {
+    const cm = minCm();
+    modal(`<h2 style="margin:0 0 6px">📏 Étalonner l'écran</h2><p class="note" style="text-align:center">Posez une règle sur l'écran : la barre orange doit mesurer exactement <b>${cm} cm</b>. Réglez avec le curseur.</p>
+      <div id="calBar" style="height:24px;background:var(--orange);border-radius:6px;margin:16px auto;width:${Math.round(pxPerCm() * cm)}px;max-width:100%"></div>
+      <input type="range" id="calRange" min="30" max="140" step="0.5" value="${pxPerCm()}" style="width:100%">
+      <div class="btn-row center" style="margin-top:8px"><button class="btn" data-action="calAuto">Automatique</button><button class="btn go" data-action="closeModal">OK</button></div>`,
+      () => $('#calRange').addEventListener('input', ev => { ROOT.pxCm = +ev.target.value; $('#calBar').style.width = Math.round(ROOT.pxCm * cm) + 'px'; saveSoon(); }));
+  },
+  calAuto: () => { delete ROOT.pxCm; save(); A.calibrer(); },
   setVoix: d => { SET().voix = d.v === '1'; save(); if (window.Voix) Voix.init(); render(); },
   voixPrecharger: () => { if (window.Voix) Voix.init(true); render(); },
   fileResults: () => shareJSON(resultsPacket(), `ObservBF_resultats_L${curLesson()}_${ROOT.deviceId}.json`),
@@ -1198,6 +1243,7 @@ document.addEventListener('input', e => {
   const t = e.target, f = t.dataset.field; if (!f) return;
   if (f === 'className') { S.name = t.value; saveSoon(); }
   else if (f === 'set') { const k = t.dataset.k; SET()[k] = t.type === 'range' || t.type === 'number' ? +t.value : k === 'bonusOn' ? !!t.value : t.value; saveSoon(); if (t.tagName === 'SELECT' || t.type === 'range') render(); }
+  else if (f === 'prepSel') { (t.dataset.k === 'md' ? A.prepMd : A.prepLv)({s: t.dataset.s, v: t.value}); }
   else if (f === 'stuBes') { stu(t.dataset.sid).bes = t.value; saveSoon(); }
   else if (f === 'bonusArme') { const s2 = SET(), c = t.dataset.c; s2.bonusArmes = COUP_KEYS.filter(k => k === c ? t.checked : s2.bonusArmes.includes(k)); saveSoon(); }
   else if (f === 'bareme') { const B = SET().bareme, v = Math.max(0, +t.value || 0), w = t.dataset.w, c = t.dataset.c; if (w === 'poing') ['tete', 'tronc', 'bas', 'nh'].forEach(k => B.poing[k] = v); else { B.pied[c] = v; if (c === 'tronc') B.pied.nh = v; } saveSoon(); }
@@ -1231,18 +1277,18 @@ let BX = null;
 function openFight() {
   const l = LV(); if (!l) return;
   if (l.cid !== S.id && ROOT.classes[l.cid]) useClass(l.cid);
-  l.cfg = l.cfg || lessonCfg(l.n); l.lv = l.lv || {R: l.cfg.jug, B: l.cfg.jug}; l.lay = l.lay || {R: ROOT.lay?.R || 'bas', B: ROOT.lay?.B || 'bas'}; l.xs = l.xs || 'R'; l.ench = l.ench || {R: null, B: null};
+  l.cfg = l.cfg || lessonCfg(l.n); l.lv = l.lv || {R: l.cfg.jug, B: l.cfg.jug}; l.lay = l.lay || {R: ROOT.lay?.R || 'bas', B: ROOT.lay?.B || 'bas'}; l.xs = l.xs || 'R'; l.ench = l.ench || {R: null, B: null}; l.md = l.md || {R: 'hauteur', B: 'hauteur'}; if (l.single == null) l.single = l.cfg.jug === 'expert' || !!l.inc;
   BFQR.stop(); $('#fight').hidden = false; document.body.classList.add('fighting');
   l.bonus = l.bonus || {R: null, B: null}; l.bonusPick = l.bonusPick || {R: 0, B: 0};
   $('#targetR').innerHTML = BFDraw.fighter({sexe: l.B.sexe, corner: 'B'}) + HEAT_LEGEND;
   $('#targetB').innerHTML = BFDraw.fighter({sexe: l.R.sexe, corner: 'R'}) + HEAT_LEGEND;
   l.inc = l.inc || null;
-  $('#arena').className = 'arena ' + (l.cfg.jug === 'expert' ? 'expert' : l.inc ? 'single' : l.cfg.jug);
+  $('#arena').className = 'arena ' + (l.single ? 'single' + (jugOf(l.xs) === 'expert' ? ' expert' : '') : '');
   for (const s of ['R', 'B']) defaultBanner(s);
   buildOrigins();
   coachKey = ''; renderFight(); renderClock(); resizeCanvas(); startClockLoop();
   if (window.Voix) Voix.monter();
-  if (l.cfg.jug === 'expert' && !l.xsDone) {      // mode expert : on choisit QUI on observe
+  if (l.single && jugOf(l.xs) === 'expert' && !l.xsDone) {      // mode expert : on choisit QUI on observe
     l.xsDone = true;
     choiceBox('Qui observez-vous ?', 'En mode expert, une tablette observe un seul tireur. Vous pourrez changer avec les boutons en haut de l\'écran.',
       [{label: `🔴 ${l.R.name}`, value: 'R', cls: 'red'}, {label: `🔵 ${l.B.name}`, value: 'B', cls: 'blue'}]).then(v => { if (v) l.xs = v; save(); buildOrigins(); renderFight(); });
@@ -1254,10 +1300,11 @@ function buildOrigins() {
   const mk = (side, arme, hand, mirror) => `<div class="weapon" data-side="${side}" data-arme="${arme}" ${hand ? `data-hand="${hand}"` : ''}>${arme === 'poing' ? BFDraw.glove(side, mirror) : BFDraw.shoe(side, mirror)}${hand ? `<b class="wl">${hand.toUpperCase()}</b>` : ''}</div>`;
   const col = (cl, html) => `<div class="wcol ${cl}">${html}</div>`;
   for (const s of ['R', 'B']) {
-    const m = s === 'B', o = $('#origin' + s), jug = cfg.jug === 'expert' ? 'expert' : jugOf(s), lat = lay[s] === 'lat';
+    const m = s === 'B', o = $('#origin' + s), jug = jugOf(s), md = l.md[s] || 'hauteur', lat = lay[s] === 'lat' && md !== 'arme';
     const both = mir => `<div class="weapon both" data-side="${s}" data-arme="gen">${BFDraw.glove(s, mir)}${BFDraw.shoe(s, mir)}</div>`;
     let html = '';
-    if (jug === 'debutant') html = lat ? col('l', both(true)) + col('r', both(false)) : both(m);
+    if (md === 'arme') { if (!isSingle(l) || s === l.xs) html = '<div class="pad" aria-hidden="true"><span>☝️ = 🥊</span><span>✌️ = 🦶</span><span>↗ ➝ ↘</span></div>'; }
+    else if (jug === 'debutant') html = lat ? col('l', both(true)) + col('r', both(false)) : both(m);
     else if (jug === 'expert') { if (s === l.xs) html = lat ? col('l', mk(s, 'poing', 'g', true) + mk(s, 'pied', 'g', false)) + col('r', mk(s, 'poing', 'd', false) + mk(s, 'pied', 'd', true))
       : mk(s, 'pied', 'g', false) + mk(s, 'poing', 'g', true) + mk(s, 'poing', 'd', false) + mk(s, 'pied', 'd', true); }
     else {
@@ -1272,8 +1319,8 @@ function buildOrigins() {
 }
 function closeFight() { if (window.Voix) Voix.demonter(); $('#fight').hidden = true; document.body.classList.remove('fighting'); stopClockLoop(); }
 const coachOf = (l, side) => nameOf(l.jp?.[side === 'R' ? 0 : 1]);
-function defaultBanner(side) { const c = coachOf(LV(), side); banner(side, c ? `📋 <b>${esc(c)}</b> · ${JUG[jugOf(side)]}` : `Niveau ${JUG[jugOf(side)].toLowerCase()}`); }
-const jugOf = side => { const l = LV(); return l.cfg.jug === 'expert' ? 'expert' : (l.lv?.[side] || l.cfg.jug); };
+function defaultBanner(side) { const c = coachOf(LV(), side), md = LV().md?.[side] || 'hauteur'; banner(side, c ? `📋 <b>${esc(c)}</b> · ${JUG_C[jugOf(side)]} · ${MD_COURT[md]}` : `${JUG_C[jugOf(side)]} · ${MD_COURT[md]}`); }
+const jugOf = side => { const l = LV(); return l.lv?.[side] || l.cfg.jug; };
 /* ---- Couleur des zones selon le nombre de touches reçues ---- */
 const HEAT = [null, null, {c: '#2E9E44', n: 'très peu touché'}, {c: '#FFD400', n: 'peu touché'}, {c: '#F59E0B', n: 'un peu touché'}, {c: '#D32F2F', n: 'beaucoup touché'}];
 const heatOf = n => HEAT[Math.min(5, n)] || null;
@@ -1446,12 +1493,15 @@ BX = BoxeSaisie.createEngine(arena, {
   sides: {left: 'R', right: 'B'}, curveMetric: 'chord', curveThreshold: () => SET().seuil, enabled: blindOn,
   doubleTapMs: g => { const l = LV(); return l && l.cfg && l.cfg.ench && jugOf(g.side) !== 'debutant' ? 500 : 0; },
   /* le point de départ désigne le bouton (gant / chaussure) le plus proche, dans la moitié du coach (ou toute la largeur en mode expert) */
+  minTravel: () => minTravelPx(), tapHit: false,
+  armeParDoigts: g => { const l = LV(); return !!l && l.md?.[g.side] === 'arme'; },
   classify: p => {
-    const l = LV(), jug = l.cfg.jug, r = arena.getBoundingClientRect();
-    const side = isSingle(l) ? l.xs : (p.x < p.w / 2 ? 'R' : 'B');
+    const l = LV(), r = arena.getBoundingClientRect();
+    const side = isSingle(l) ? l.xs : (p.x < p.w / 2 ? 'R' : 'B'), jug = jugOf(side);
+    if (l.md[side] === 'arme') { const hand = jug === 'expert' ? (p.x < p.w / 2 ? 'g' : 'd') : null; return {side, key: side + (hand || ''), arme: null, hand}; }
     let best = null, bd = Infinity;
     arena.querySelectorAll(`.half[data-side="${side}"] .weapon`).forEach(el => { const b = el.getBoundingClientRect(), px = p.x + r.left, py = p.y + r.top, dx = Math.max(b.left - px, 0, px - b.right), dy = Math.max(b.top - py, 0, py - b.bottom), d = Math.hypot(dx, dy) + Math.hypot(px - (b.left + b.right) / 2, py - (b.top + b.bottom) / 2) * 0.001; if (d < bd) { bd = d; best = el; } });
-    if (!best) return {side, key: side, arme: 'poing'};
+    if (!best) return {side, key: side, arme: 'poing', hand: null};
     const arme = best.dataset.arme, hand = best.dataset.hand || null;
     return {side, key: jug === 'expert' ? side + arme + hand : side, arme, hand};
   },
@@ -1465,10 +1515,10 @@ BX = BoxeSaisie.createEngine(arena, {
     const tr = (res.ids || []).map(id => blindTrails.get(id)).filter(Boolean), best = blindTrails.get(res.bestId);
     (res.ids || []).forEach(id => blindTrails.delete(id));
     const fade = () => tr.forEach(t => { t.t0 = performance.now(); });
-    if (res.kind === 'cancel') { tr.forEach(t => { t.t0 = performance.now() - 900; }); kick(); return; }
+    if (res.kind === 'cancel') { tr.forEach(t => { t.t0 = performance.now() - 900; }); kick(); if (res.reason === 'court') { banner(res.side, `✖ Geste trop court : trace au moins ${minCm()} cm`, 'zero'); buzz(20); } return; }
     if (res.kind === 'undo') { fade(); kick(); buzz(60); $(`.sbtn[data-act="undo"][data-side="${res.side}"]`).click(); return; }
     if (res.kind === 'chain') { tr.forEach(t => { t.t0 = performance.now() - 600; }); kick(); armChain(res.side); return; }
-    const out = saisirTouche(res.side, {arme: res.arme, courbe: res.trajectoire === 'courbe', fingers: res.fingers, cx: res.cx, hand: res.hand, inc: res.flags.length > 0});
+    const out = saisirTouche(res.side, {arme: res.arme, courbe: res.trajectoire === 'courbe', fingers: res.fingers, cx: res.cx, cy: res.cy, sx: res.sx, sy: res.sy, hand: res.hand});
     if (!out) return;
     if (best) { best.color = res.trajectoire === 'courbe' ? cssv('--curve') : cssv('--straight'); best.label = out.jug === 'debutant' ? '' : COUPS[out.coup].l; }
     fade();
@@ -1485,7 +1535,7 @@ function saisirTouche(side, o) {
     if (!cfg[arme]) return null;
     coup = arme === 'poing' ? (o.courbe ? 'crochet' : 'direct') : (o.courbe ? 'fouette' : 'chasse');
     if (jug === 'debrouille') { z = 'tronc'; extra.nh = true; }
-    else { h = o.h || hOf(arme, o.fingers || 1); if (arme === 'poing' && h === 'milieu') h = 'bas'; [z, zs] = BLIND_ZONE[arme][h]; extra.h = h; }
+    else { h = o.h || (l.md?.[side] === 'arme' ? hFromAngle(arme, o) : hOf(arme, o.fingers || 1)); if (arme === 'poing' && h === 'milieu') h = 'bas'; [z, zs] = BLIND_ZONE[arme][h]; extra.h = h; }
   }
   if (jug === 'expert') { const r = arena.getBoundingClientRect(); extra.k = o.cx < r.left + r.width / 2 ? 'g' : 'd'; extra.main = o.hand; zs = extra.k; }
   extra.inc = !!o.inc && jug !== 'debutant';
@@ -1560,7 +1610,7 @@ $$('.side-ctrl').forEach(c => c.addEventListener('click', e => {
     save(); renderFight(); banner(side, `↩️ Annulé : ${ev.gen ? 'touche' : COUPS[ev.c].l}`, 'zero');
   }
 }));
-$('#xsel').addEventListener('click', e => { const b = e.target.closest('[data-xs]'); if (!b || !LV()) return; LV().xs = b.dataset.xs; save(); buildOrigins(); renderFight(); if (window.Voix) Voix.monter(); });
+$('#xsel').addEventListener('click', e => { const b = e.target.closest('[data-xs]'); if (!b || !LV()) return; LV().xs = b.dataset.xs; LV().inc = LV().single && LV().md[LV().xs] === 'adapte' ? {xs: LV().xs} : null; save(); buildOrigins(); renderFight(); if (window.Voix) Voix.monter(); });
 
 /* ---- Résultat + observation du pilier ---- */
 let autoT = null;

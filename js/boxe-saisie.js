@@ -136,7 +136,10 @@
     tapTrajectory: 'droite',
     undoFingers: 4,
     ignore: 'button, a, input, select, textarea, .bx-overlay',
-    classify: null,         // (p:{x,y,w,h}) => {side, key, arme, hand} : classement personnalisé du point de départ (boutons en bas d'écran)
+    classify: null,
+    tapHit: true,           // false : un geste plus court que minTravel n'est JAMAIS une touche (annulé)
+    tapMax: 40,             // px : en dessous, c'est un simple tap (double tap = enchaînement, 4 doigts = annuler)
+    armeParDoigts: null,    // (geste) => bool : l'arme (poing / pied) est donnée par le nombre de doigts (1 = poing, 2 et + = pied)         // (p:{x,y,w,h}) => {side, key, arme, hand} : classement personnalisé du point de départ (boutons en bas d'écran)
     doubleTapMs: 0,         // > 0 : un double tap (deux touchers courts successifs) émet kind:'chain' ; un tap simple n'est alors plus une touche
     enabled: null,          // () => bool : false = le moteur ignore les touchers
     onTrail: null, onGesture: null
@@ -244,21 +247,25 @@
       if (cancelled || !bestM) { if (o.onGesture) o.onGesture(res); return; }
       var last = best.path[best.path.length - 1], first = best.path[0];
       res.cx = last.cx; res.cy = last.cy; res.sx = first.cx; res.sy = first.cy; res.metrics = bestM;
-      var tap = bestM.len < o.minTravel;
-      if (tap && g.maxFingers >= o.undoFingers) { res.kind = 'undo'; if (o.onGesture) o.onGesture(res); return; }
+      var minT = typeof o.minTravel === 'function' ? o.minTravel() : o.minTravel;
+      var tap = bestM.chord < minT;                                    // déplacement (départ -> arrivée) trop court
+      var isTap = bestM.chord < (o.tapMax || 40);                      // simple tap
+      if (isTap && g.maxFingers >= o.undoFingers) { res.kind = 'undo'; if (o.onGesture) o.onGesture(res); return; }
       var dtm = typeof o.doubleTapMs === 'function' ? o.doubleTapMs(g) : o.doubleTapMs;
-      if (tap && dtm > 0) {
+      if (isTap && dtm > 0) {
         var nowT = performance.now(), prevT = lastTap[g.key] || 0;
-        if (prevT && nowT - prevT <= o.doubleTapMs) { lastTap[g.key] = 0; res.kind = 'chain'; }
-        else { lastTap[g.key] = nowT; res.kind = 'cancel'; }
+        if (prevT && nowT - prevT <= dtm) { lastTap[g.key] = 0; res.kind = 'chain'; }
+        else { lastTap[g.key] = nowT; res.kind = 'cancel'; res.reason = 'tap'; }
         if (o.onGesture) o.onGesture(res); return;
       }
+      if (tap && !o.tapHit) { res.kind = 'cancel'; res.reason = isTap ? 'tap' : 'court'; if (o.onGesture) o.onGesture(res); return; }
       var flags = [], fingers = g.maxFingers;
       if (fingers > 3) { fingers = 3; flags.push('plus de 3 doigts'); }
       if (fingers < 1) fingers = 1;
       var traj;
       if (tap) { traj = o.tapTrajectory; flags.push('trajectoire non détectée (tap)'); }
       else traj = bestM.ratio > threshold() ? 'courbe' : 'droite';
+      if (o.armeParDoigts && o.armeParDoigts(g)) res.arme = g.maxFingers >= 2 ? 'pied' : 'poing';
       res.kind = 'hit'; res.trajectoire = traj; res.fingers = fingers; res.flags = flags;
       if (o.onGesture) o.onGesture(res);
     }

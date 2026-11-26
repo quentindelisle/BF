@@ -49,13 +49,14 @@
       const l = LV(); if (!l || !l.inc) return;
       const b = document.getElementById('banner' + l.xs); if (!b || (b.className.indexOf('voix') < 0 && b.textContent && !/^\s*(📋|Niveau)/.test(b.textContent))) return;
       const jug = jugOf(l.xs), ex = {debutant: '« touche »', debrouille: '« chassé » ou « crochet »', complet: '« fouetté haut »'}[jug];
-      const niv = INC_N[jug][0] + ' · ' + INC_N[jug][1];
+      const niv = INC_N[jug] ? INC_N[jug][0] + ' · ' + INC_N[jug][1] : 'Expert';
       let m;
-      if (!SET().voix) m = `Mode Inclusion ${niv} · saisie tactile (voix désactivée : Paramètres du cycle → Saisie vocale)`;
-      else if (Voix.statut === 'erreur') m = `Mode Inclusion ${niv} · ⚠ voix indisponible : ${esc(Voix.erreur)} (la saisie tactile reste possible)`;
-      else if (Voix.statut !== 'pret') m = `Mode Inclusion ${niv} · ⏳ chargement du modèle vocal… (saisie tactile possible)`;
-      else if (Voix.continu) m = `Mode Inclusion ${niv} · 🎧 écoute continue : annonce tes touches (${ex})`;
-      else m = `Mode Inclusion ${niv} · 🎤 maintiens « Parler » et dis ${ex}, ou active l'écoute continue`;
+      if (jug === 'expert') m = 'Mode Adapté · Expert : saisie tactile (la voix couvre les niveaux Débutant à Complet)';
+      else if (!SET().voix) m = `Mode Adapté ${niv} · saisie tactile (voix désactivée : Paramètres du cycle → Saisie vocale)`;
+      else if (Voix.statut === 'erreur') m = `Mode Adapté ${niv} · ⚠ voix indisponible : ${esc(Voix.erreur)} (la saisie tactile reste possible)`;
+      else if (Voix.statut !== 'pret') m = `Mode Adapté ${niv} · ⏳ chargement du modèle vocal… (saisie tactile possible)`;
+      else if (Voix.continu) m = `Mode Adapté ${niv} · 🎧 écoute continue : annonce tes touches (${ex})`;
+      else m = `Mode Adapté ${niv} · 🎤 maintiens « Parler » et dis ${ex}, ou active l'écoute continue`;
       banner(l.xs, m, 'await voix');
     },
     /* Précharge le modèle (52 Mo la 1re fois) dès que la saisie vocale est activée */
