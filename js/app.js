@@ -4,7 +4,7 @@
    parcours prof en 4 étapes, échanges par QR codes, paramètres du cycle, piliers.
    ===================================================================== */
 'use strict';
-const APP_VERSION = '3.13.2';
+const APP_VERSION = '3.14.1';
 const ROOT_KEY = 'observbf.v3';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -675,7 +675,7 @@ function profNotice() {
         <tr><td><b>Débutant</b></td><td>une seule case (gant + chaussure) : on note qu'un coup touche, sans arme ni hauteur.</td></tr>
         <tr><td><b>Débrouillé</b></td><td>poing et pied distingués (et la trajectoire), pas les hauteurs.</td></tr>
         <tr><td><b>Jugement complet</b></td><td>armes, trajectoires et hauteurs ; deux coachs, un par couleur.</td></tr>
-        <tr><td><b>Mode Inclusion</b></td><td>au choix à chaque assaut (écran de préparation) : <b>un seul observateur par tablette</b>, 3 niveaux — <b>N1</b> touche seule (tout le personnage se colore), <b>N2</b> poing ou pied, <b>N3</b> poing / pied + hauteur. La voix s'y ajoute si l'enseignant l'active (Paramètres du cycle) ; la saisie tactile reste possible.</td></tr>
+        <tr><td><b>Mode Inclusion</b></td><td>au choix à chaque assaut (écran de réglages qui s'ouvre juste après « Commencer l'assaut ») : <b>un seul observateur par tablette</b>, 3 niveaux — <b>N1</b> touche seule (tout le personnage se colore), <b>N2</b> poing ou pied, <b>N3</b> poing / pied + hauteur. La voix s'y ajoute si l'enseignant l'active (Paramètres du cycle) ; la saisie tactile reste possible.</td></tr>
         <tr><td><b>Expert</b></td><td><b>un seul observateur</b> par tablette (il choisit 🔴 ou 🔵). Quatre boutons en bas : <b>pied G · poing G · poing D · pied D</b>. Le côté de l'écran où le geste <b>finit</b> donne le côté touché ; main gauche vers la droite de l'écran (ou l'inverse) = <b>coup croisé</b>.</td></tr></tbody></table>
       <p class="note">Leçon ${n} : niveau <b>${JUG[cfg.jug]}</b>${cfg.jug === 'debutant' ? '' : ` · ${cfg.poing ? '🥊 poings' : ''} ${cfg.pied ? '🦶 pieds' : ''} ${cfg.ench ? '· 🔗 enchaînements' : ''} ${cfg.bon ? '· ★ arme bonus' : ''}`}. Chaque leçon peut aussi interdire les poings, les pieds, les enchaînements ou l'arme bonus. Dans Paramètres du cycle, vous choisissez un niveau par leçon ou des <b>niveaux différenciés par élève</b> (fil rouge : l'écran de chaque coach s'adapte à son niveau ; en fin de leçon vous décidez qui monte ; l'expert se déclenche à la main).</p></div>
     <div class="card"><h2>🎯 Valeurs des touches</h2>
@@ -833,7 +833,6 @@ function viewPrep() {
         <label class="wB">📋 Coach bleu (juge de coin)<select data-field="prep" data-k="jp" data-i="1">${opts(P.jp[1] || '', jPool, '— aucun —')}</select></label></div>
       ${rest.length ? `<p class="note" style="margin:0">💤 Repos : <b>${rest.map(nameOf).map(esc).join(', ')}</b></p>` : ''}
       <p class="note" style="margin:0">${(() => { const lv = levelsFor(n, [P.jp[0] || '', P.jp[1] || '']); return lv.R === 'expert' ? 'Niveau de jugement : <b>Expert</b> · un seul observateur par tablette' : `Niveau de jugement : <span class="wR">coach rouge <b>${JUG[lv.R]}</b></span> · <span class="wB">coach bleu <b>${JUG[lv.B]}</b></span>`; })()}${lessonCfg(n).ench ? ' · 🔗 enchaînements' : ''}</p>
-      ${prepObs(P)}
       <div class="row between"><button class="btn ghost" data-action="prepSkip" ${P.free ? 'hidden' : ''}>Passer cet assaut</button><button class="btn go" data-action="prepStart">🥊 Commencer l'assaut</button></div></div>
     <aside>${pil ? `<div class="pil-card"><b>🏛 Pilier : ${esc(pil.n)}</b><ul>${pil.cr.map(c => `<li>${esc(c)}</li>`).join('')}</ul><div class="note">Chaque coach l'observe chez son tireur.</div></div>` : ''}
       ${next.length ? `<div class="card" style="margin-top:14px"><h3>À suivre</h3><ol class="next-list">${next.map(a => `<li><span class="wR">${esc(nameOf(a.red))}</span> – <span class="wB">${esc(nameOf(a.blue))}</span><div class="note">⚖️ ${esc(nameOf(a.jc) || '—')} · 📋 ${(a.jp || []).filter(Boolean).map(nameOf).map(esc).join(' / ') || '—'}</div></li>`).join('')}</ol></div>` : ''}
@@ -859,11 +858,11 @@ function startAssault() {
   }
   const t = timing(n, P.free ? 0 : presentMembers(n, g).length);
   const fighter = (id, side) => { const s = stu(id); return {id, name: fullName(s) || (P.guest[side].name || '').trim() || (side === 'R' ? 'Rouge' : 'Bleu'), sexe: s ? s.sexe : P.guest[side].sexe}; };
-  const single = P.n === 1, md = {R: P.md.R, B: P.md.B};
-  ROOT.obsN = P.n; ROOT.obsMd = md;
+  const lvDef = levelsFor(n, [P.jp[0] || '', P.jp[1] || '']), exp = lvDef.R === 'expert' || lvDef.B === 'expert';
+  const setup = {n: exp ? 1 : (ROOT.obsN || 2), xs: 'R', md: {...(ROOT.obsMd || {R: 'hauteur', B: 'hauteur'})}, lv: {...lvDef}, lay: {R: ROOT.lay?.R || 'bas', B: ROOT.lay?.B || 'bas'}};
   ROOT.live = {cid: S.id, n, aid: P.aid, gid: P.gid, free: P.free, R: fighter(P.red, 'R'), B: fighter(P.blue, 'B'), jc: P.jc, jp: [P.jp[0] || '', P.jp[1] || ''],
     events: [], ench: {R: null, B: null}, bonus: {R: null, B: null}, bonusPick: {R: 0, B: 0}, pil: lessonPil(n), obs: {R: [], B: []},
-    cfg: lessonCfg(n), lv: {R: P.lv.R, B: P.lv.B}, md, single, inc: single && md[P.xs] === 'adapte' ? {xs: P.xs} : null, xs: single ? P.xs : 'R', xsDone: true, chain: {R: null, B: null},
+    cfg: lessonCfg(n), lv: {...lvDef}, md: {...setup.md}, single: setup.n === 1, inc: null, xs: 'R', xsDone: true, lay: {...setup.lay}, setup, setupDone: false, chain: {R: null, B: null},
     clock: {phase: 'ready', rep: 1, R: t.R, repSec: t.rep, recSec: t.rec, remaining: t.rep * 1000, endAt: null}, startedAt: Date.now()};
   save(); openFight();
 }
@@ -1213,6 +1212,24 @@ const A = {
   prepSex: d => { const P = UI.P, s = stu(d.side === 'R' ? P.red : P.blue); if (s) { s.sexe = d.v; save(); } else P.guest[d.side].sexe = d.v; render(); },
   prepSkip: () => { const P = UI.P, a = S.assaults.find(x => x.id === P.aid); a.order = lessonAssaults(a.n, a.gid).reduce((m, x) => Math.max(m, x.order || 0), 0) + 1; save(); openPrep(false); toast('Assaut repoussé à la fin'); },
   prepStart: () => startAssault(),
+  setupN: d => {
+    const S0 = LV().setup; S0.n = +d.v;
+    if (S0.n === 2) { let ch = false; ['R', 'B'].forEach(s => { if (S0.md[s] === 'adapte') { S0.md[s] = 'hauteur'; ch = true; } if (S0.lv[s] === 'expert') { S0.lv[s] = 'complet'; ch = true; } }); if (ch) toast('Adapté et Expert : un seul observateur par tablette. Réglages ramenés à Nb de doigts = Hauteur / Complet.'); }
+    renderSetup();
+  },
+  setupXs: d => { LV().setup.xs = d.v; renderSetup(); },
+  setupSet: d => {
+    const S0 = LV().setup; S0[d.k][d.s] = d.v;
+    if ((d.k === 'md' && d.v === 'adapte') || (d.k === 'lv' && d.v === 'expert')) { S0.n = 1; S0.xs = d.s; }
+    if (d.k === 'md' && d.v === 'adapte' && window.Voix) Voix.init(true);
+    renderSetup();
+  },
+  setupGo: () => {
+    const l = LV(), S0 = l.setup;
+    l.single = S0.n === 1; l.xs = l.single ? S0.xs : 'R'; l.md = {...S0.md}; l.lv = {...S0.lv}; l.lay = {...S0.lay};
+    l.inc = l.single && l.md[l.xs] === 'adapte' ? {xs: l.xs} : null; l.setupDone = true;
+    ROOT.obsN = S0.n; ROOT.obsMd = {...S0.md}; ROOT.lay = {...S0.lay}; save(); applyFight();
+  },
   prepN: d => {
     const P = UI.P; P.n = +d.v;
     if (P.n === 2) { let ch = false; ['R', 'B'].forEach(s => { if (P.md[s] === 'adapte') { P.md[s] = 'hauteur'; ch = true; } if (P.lv[s] === 'expert') { P.lv[s] = 'complet'; ch = true; } }); P.lvTouched = true; if (ch) toast('Adapté et Expert : un seul observateur par tablette. Réglages ramenés à Nb de doigts = Hauteur / Complet.'); }
@@ -1278,21 +1295,44 @@ function openFight() {
   const l = LV(); if (!l) return;
   if (l.cid !== S.id && ROOT.classes[l.cid]) useClass(l.cid);
   l.cfg = l.cfg || lessonCfg(l.n); l.lv = l.lv || {R: l.cfg.jug, B: l.cfg.jug}; l.lay = l.lay || {R: ROOT.lay?.R || 'bas', B: ROOT.lay?.B || 'bas'}; l.xs = l.xs || 'R'; l.ench = l.ench || {R: null, B: null}; l.md = l.md || {R: 'hauteur', B: 'hauteur'}; if (l.single == null) l.single = l.cfg.jug === 'expert' || !!l.inc;
+  if (l.setupDone == null) l.setupDone = !l.setup;                      // assaut repris d'une ancienne version : pas de réglages à refaire
   BFQR.stop(); $('#fight').hidden = false; document.body.classList.add('fighting');
   l.bonus = l.bonus || {R: null, B: null}; l.bonusPick = l.bonusPick || {R: 0, B: 0};
   $('#targetR').innerHTML = BFDraw.fighter({sexe: l.B.sexe, corner: 'B'}) + HEAT_LEGEND;
   $('#targetB').innerHTML = BFDraw.fighter({sexe: l.R.sexe, corner: 'R'}) + HEAT_LEGEND;
   l.inc = l.inc || null;
+  renderClock(); startClockLoop();
+  if (!l.setupDone) { ['R', 'B'].forEach(s => { $('#fName' + s).textContent = l[s].name; $('#fScore' + s).textContent = scoreOf(l.events, s); $('#fSub' + s).textContent = ''; }); $('#arena').hidden = true; $('#fSetup').hidden = false; renderSetup(); return; }
+  applyFight();
+}
+function applyFight() {
+  const l = LV();
+  $('#fSetup').hidden = true; $('#arena').hidden = false;
   $('#arena').className = 'arena ' + (l.single ? 'single' + (jugOf(l.xs) === 'expert' ? ' expert' : '') : '');
   for (const s of ['R', 'B']) defaultBanner(s);
   buildOrigins();
   coachKey = ''; renderFight(); renderClock(); resizeCanvas(); startClockLoop();
   if (window.Voix) Voix.monter();
-  if (l.single && jugOf(l.xs) === 'expert' && !l.xsDone) {      // mode expert : on choisit QUI on observe
+  if (l.single && jugOf(l.xs) === 'expert' && !l.xsDone) {      // expert : on choisit QUI on observe
     l.xsDone = true;
     choiceBox('Qui observez-vous ?', 'En mode expert, une tablette observe un seul tireur. Vous pourrez changer avec les boutons en haut de l\'écran.',
       [{label: `🔴 ${l.R.name}`, value: 'R', cls: 'red'}, {label: `🔵 ${l.B.name}`, value: 'B', cls: 'blue'}]).then(v => { if (v) l.xs = v; save(); buildOrigins(); renderFight(); });
   }
+}
+/* Réglages de la saisie, juste après le lancement de l'assaut : observateurs, mode, niveau et interface de chaque observateur */
+function renderSetup() {
+  const l = LV(), S0 = l.setup, active = S0.n === 2 ? ['R', 'B'] : [S0.xs], nm = s => esc(l[s].name);
+  const seg = (s, k, cur, opts) => `<div class="seg">${opts.map(([v, t]) => `<button class="${cur === v ? 'on' : ''}" data-action="setupSet" data-s="${s}" data-k="${k}" data-v="${v}">${t}</button>`).join('')}</div>`;
+  const card = s => `<div class="scard ${s}"><b class="${s === 'R' ? 'wR' : 'wB'}">${s === 'R' ? '🔴' : '🔵'} ${nm(s)}</b><span></span>
+    <span class="lbl">Mode</span>${seg(s, 'md', S0.md[s], Object.entries(MD).map(([v, t]) => [v, t.replace('Mode : ', '')]))}
+    <span class="lbl">Niveau</span>${seg(s, 'lv', S0.lv[s], Object.entries(JUG_C))}
+    <span class="lbl">Interface</span>${S0.md[s] === 'arme' ? '<span class="note">Zone de saisie libre, sans boutons : on part de n\'importe où.</span>' : seg(s, 'lay', S0.lay[s], [['bas', '⬇ Boutons en bas'], ['lat', '↔ Boutons sur les côtés']])}</div>`;
+  $('#fSetup').innerHTML = `<h2>Réglages de la saisie</h2>
+    <div class="srow"><span class="lbl">Observateurs sur la tablette</span><div class="seg"><button class="${S0.n === 2 ? 'on' : ''}" data-action="setupN" data-v="2">2 observateurs</button><button class="${S0.n === 1 ? 'on' : ''}" data-action="setupN" data-v="1">1 seul observateur</button></div>
+      ${S0.n === 1 ? `<span class="lbl">Je regarde</span><div class="seg"><button class="${S0.xs === 'R' ? 'on' : ''}" data-action="setupXs" data-v="R">🔴 ${nm('R')}</button><button class="${S0.xs === 'B' ? 'on' : ''}" data-action="setupXs" data-v="B">🔵 ${nm('B')}</button></div>` : ''}</div>
+    ${active.map(card).join('')}
+    <p class="note" style="margin:0">Adapté (voix) et Expert : un seul observateur par tablette · un geste de moins de ${minCm()} cm n'est jamais compté.</p>
+    <button class="btn go" data-action="setupGo">▶ Valider et commencer</button>`;
 }
 /* Boutons de départ en bas de chaque moitié : gant / chaussure (ou une seule case en niveau débutant ; quatre boutons en expert) */
 function buildOrigins() {
@@ -1420,6 +1460,7 @@ function phaseEnd() {
 }
 function nextRep() { const c = LV().clock; c.rep++; c.phase = 'ready'; c.remaining = c.repSec * 1000; c.endAt = null; toast(`Reprise ${c.rep} : appuyez sur Départ`); }
 $('#cStart').addEventListener('click', () => {
+  if (!LV().setupDone) return toast("Validez d'abord les réglages de la saisie");
   audio(); const c = LV().clock;
   if (c.phase === 'ready' || c.phase === 'pause') { if (c.phase === 'ready') beep(1, 1040, .3); c.phase = 'run'; c.endAt = Date.now() + c.remaining; }
   else if (c.phase === 'run') { c.phase = 'pause'; c.remaining = Math.max(0, c.endAt - Date.now()); }
