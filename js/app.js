@@ -4,7 +4,7 @@
    parcours prof en 4 étapes, échanges par QR codes, paramètres du cycle, piliers.
    ===================================================================== */
 'use strict';
-const APP_VERSION = '3.14.3';
+const APP_VERSION = '3.14.4';
 const ROOT_KEY = 'observbf.v3';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -1344,7 +1344,8 @@ function buildOrigins() {
     const m = s === 'B', o = $('#origin' + s), jug = jugOf(s), md = l.md[s] || 'hauteur', lat = lay[s] === 'lat' && md !== 'arme';
     const both = mir => `<div class="weapon both" data-side="${s}" data-arme="gen">${BFDraw.glove(s, mir)}${BFDraw.shoe(s, mir)}</div>`;
     let html = '';
-    if (md === 'arme') { if (!isSingle(l) || s === l.xs) html = '<div class="pad" aria-hidden="true"><span>☝️ = 🥊</span><span>✌️ = 🦶</span><span>↗ ➝ ↘</span></div>'; }
+    const free = md === 'arme';                                         // zone de saisie libre : tout l'écran, pas de boutons, une mini-légende dans le coin
+    if (free) html = '';
     else if (jug === 'debutant') html = lat ? col('l', both(true)) + col('r', both(false)) : both(m);
     else if (jug === 'expert') { if (s === l.xs) html = lat ? col('l', mk(s, 'poing', 'g', true) + mk(s, 'pied', 'g', false)) + col('r', mk(s, 'poing', 'd', false) + mk(s, 'pied', 'd', true))
       : mk(s, 'pied', 'g', false) + mk(s, 'poing', 'g', true) + mk(s, 'poing', 'd', false) + mk(s, 'pied', 'd', true); }
@@ -1355,6 +1356,7 @@ function buildOrigins() {
     }
     o.innerHTML = html;
     document.querySelector(`.half[data-side="${s}"]`).classList.toggle('lat', lat);
+    { const hf = document.querySelector(`.half[data-side="${s}"]`); hf.classList.toggle('free', free); let lg = hf.querySelector('.leg'); if (!lg) { lg = document.createElement('div'); lg.className = 'leg'; lg.setAttribute('aria-hidden', 'true'); hf.appendChild(lg); } lg.hidden = !free; lg.textContent = '☝️🥊  ✌️🦶  ↗ ➝ ↘'; }
     const lb = $(`.sbtn.lay[data-side="${s}"]`); lb.classList.toggle('on', lat); lb.innerHTML = lat ? '<i>↔</i><span>Latéral</span>' : '<i>⬇</i><span>En bas</span>';
   }
 }
