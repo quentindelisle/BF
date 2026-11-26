@@ -68,3 +68,6 @@ Une tablette sans leçon peut lancer un assaut libre (noms saisis). Chaque touch
 ## Version 3.10 — récap animé de l'assaut
 - En fin d'assaut (bilan) et dans Résultats → Classements → Assauts : **🎬 Revoir l'assaut**. Deux boxeurs en vue de 3/4, dessinés dans l'esthétique de l'appli, rejouent les coups saisis **au moment où ils ont été saisis**, à la bonne hauteur et avec la bonne technique (direct, crochet, chassé, fouetté ; haut, médian, bas), avec impact coloré, étiquette et score en direct.
 - Vitesses **×1, ×1,5, ×2**, pause, retour au début, curseur de navigation avec repères des coups. Les temps morts de plus de 5 s sont raccourcis.
+
+## Version 3.11 — récap en 3D
+- Le récap de l'assaut est désormais **en 3D** : deux boxeurs modélisés avec un squelette articulé (genoux et coudes = charnières qui ne plient que dans le bon sens, cinématique inverse pour amener le gant ou le pied sur la cible à la bonne hauteur), vus de 3/4. Moteur 3D minimal intégré (aucune bibliothèque, fonctionne hors ligne). On peut **glisser sur l'image pour tourner la caméra** (double toucher pour revenir à la vue d'origine).

@@ -629,10 +629,12 @@ body.fighting #ver{display:none}
 .rp-mid{text-align:center;min-width:170px}
 .rp-clock{font:800 28px var(--display);font-variant-numeric:tabular-nums;line-height:1}
 .rp-cap{font:700 14px var(--font);min-height:20px}
-#rpStage{width:100%;height:min(56vh,520px);background:#fff;border-radius:14px;border:2px solid var(--line)}
+#rpStage{display:block;width:100%;height:min(56vh,520px);background:#fff;border-radius:14px;border:2px solid var(--line)}
 .rp-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .rp-seekwrap{position:relative;flex:1 1 240px;min-width:160px}
 .rp-seekwrap input{width:100%;margin:0}
 .rp-ticks{position:absolute;left:0;right:0;top:-5px;height:8px;pointer-events:none}
 .rp-ticks i{position:absolute;width:3px;height:8px;border-radius:2px;transform:translateX(-1px)}
 .rp-note{font:600 12px var(--font);color:var(--muted);text-align:center}
+
+#rpStage{touch-action:none;cursor:grab}#rpStage:active{cursor:grabbing}
