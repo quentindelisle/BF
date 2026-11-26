@@ -71,3 +71,7 @@ Une tablette sans leçon peut lancer un assaut libre (noms saisis). Chaque touch
 
 ## Version 3.11 — récap en 3D
 - Le récap de l'assaut est désormais **en 3D** : deux boxeurs modélisés avec un squelette articulé (genoux et coudes = charnières qui ne plient que dans le bon sens, cinématique inverse pour amener le gant ou le pied sur la cible à la bonne hauteur), vus de 3/4. Moteur 3D minimal intégré (aucune bibliothèque, fonctionne hors ligne). On peut **glisser sur l'image pour tourner la caméra** (double toucher pour revenir à la vue d'origine).
+
+## Version 3.13 — récap en animation pose à pose (vos planches)
+- Le récap utilise vos **planches de poses** : chaque coup rejoue la pose dessinée correspondante — direct, crochet, chassé et fouetté, bas / médian / haut — enchaînée avec la garde (deux poses de garde qui alternent) et le genou levé pour les coups de pied, avec fente vers l'adversaire et recul de celui qui encaisse. Le boxeur bleu est le miroir du rouge avec des gants bleus.
+- Les poses sont découpées des planches (`img/poses/`, 20 poses × rouge / bleu). Une seule planche existe pour l'instant (le garçon) : les trois personnages (garçon, fille, non genré) l'utilisent tant que les autres planches ne sont pas fournies.

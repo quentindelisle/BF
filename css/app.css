@@ -638,3 +638,5 @@ body.fighting #ver{display:none}
 .rp-note{font:600 12px var(--font);color:var(--muted);text-align:center}
 
 #rpStage{touch-action:none;cursor:grab}#rpStage:active{cursor:grabbing}
+
+#rpStage{cursor:default;touch-action:auto}
